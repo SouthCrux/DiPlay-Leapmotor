@@ -75,7 +75,7 @@ class Iap2WirelessControlClient(
         var transportNotificationSeen = false
         var wirelessCarPlayAvailableSeen = false
         val location = Iap2LocationReporter(locationProvider, onProgress)
-        val vehicleStatus = Iap2VehicleStatusReporter(vehicleStatusProvider, onProgress)
+        val vehicleStatus = Iap2VehicleStatusReporter(vehicleStatusProvider.takeIf { identified.vehicleStatusEnabled }, onProgress)
         try {
             while (true) {
                 val remaining = deadline.remainingMillis(keepAliveAfterDeadline)
@@ -277,6 +277,10 @@ class Iap2WirelessControlClient(
                 deviceIdentifier = endpoint.deviceIdentifier,
                 publicKey = endpoint.publicKey,
                 sourceVersion = endpoint.sourceVersion,
+                sdkVersion = endpoint.themeAsset?.sdkVersion,
+                clusterAsset = endpoint.themeAsset?.let {
+                    com.shilapi.xcertplay.iap2.message.Iap2ClusterAsset(it.identifier, it.version)
+                },
             )
 
         private fun later(
@@ -307,6 +311,7 @@ class Iap2WirelessCarPlayEndpoint(
     val publicKey: String,
     val sourceVersion: String,
     accessPointBssid: ByteArray? = null,
+    val themeAsset: Iap2ThemeAsset? = null,
 ) {
     val ipAddresses: List<String> = ipAddresses.toList()
     val accessPointBssid: ByteArray? = accessPointBssid?.copyOf()

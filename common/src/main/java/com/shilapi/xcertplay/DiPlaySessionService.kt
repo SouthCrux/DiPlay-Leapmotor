@@ -15,9 +15,14 @@ import com.shilapi.xcertplay.host.R
 
 /** Keeps an explicitly started connection alive when another car app is in the foreground. */
 class DiPlaySessionService : Service() {
+    internal var hotspotRecoveryFactory: (android.content.Context) -> ForegroundHotspotRecovery =
+        ForegroundHotspotRecovery::forC11
+    private val hotspotRecovery by lazy { hotspotRecoveryFactory(this) }
+
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            hotspotRecovery.stop()
             CarPlayBackgroundSession.stop()
             stopSelf()
             return START_NOT_STICKY
@@ -52,9 +57,19 @@ class DiPlaySessionService : Service() {
             }
             startForeground(1, notification, types)
         } else startForeground(1, notification)
+        // A camera or another car app can cover the host while the connection remains active.
+        // The opt-in and manual-hotspot mode are checked on each poll; startup is serialized
+        // with the visible-screen recovery by CarHotspotTethering.
+        hotspotRecovery.start()
         return START_NOT_STICKY
     }
+    override fun onDestroy() {
+        hotspotRecovery.stop()
+        super.onDestroy()
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
+        hotspotRecovery.stop()
         // BYD's recents force-stops the package ~10 ms after removing the task: end guidance first.
         com.shilapi.xcertplay.hud.BydNavigationOutputs.endNow()
         CarPlayBackgroundSession.stop()

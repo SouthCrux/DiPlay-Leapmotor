@@ -55,9 +55,12 @@ data class Iap2IdentificationConfig(
     /** Declares an electric vehicle and answers the phone's vehicle-status subscription. */
     val vehicleStatusEnabled: Boolean = false,
     /** The charging inlets declared with [vehicleStatusEnabled]. */
-    val chargingConnectors: EvChargingConnectors = EvChargingConnectors.CCS2_TYPE2,
+    val chargingConnectors: EvChargingConnectors? = EvChargingConnectors.CCS2_TYPE2,
+    val vehicleStatusCapabilities: VehicleStatusCapabilities = VehicleStatusCapabilities(),
     /** Also offer wheel speed ($PASCD) in the location component; needs [locationInformationEnabled]. */
     val vehicleSpeedEnabled: Boolean = false,
+    /** Optional catalog asset ID on the CarPlay transport component (reference: LIVI ident.rs). */
+    val themeAssetIdentifier: String? = null,
 ) {
     constructor(
         name: String,
@@ -87,6 +90,7 @@ data class Iap2IdentificationConfig(
             require(it.isNotBlank()) { "Identification identity strings must not be blank" }
         }
         require(language.isNotBlank()) { "Identification language must not be blank" }
+        require(themeAssetIdentifier == null || themeAssetIdentifier.matches(Regex("[A-Za-z0-9_.-]{1,128}")))
         require(externalAccessoryProtocol.isNotBlank()) { "External accessory protocol must not be blank" }
         listOf(
             name,
@@ -358,6 +362,7 @@ class Iap2IdentificationClient(private val session: Iap2Session) {
                         void(2)
                         u8(3, config.carPlayUsbInterfaceNumber)
                         void(4)
+                        optionalString(6, config.themeAssetIdentifier)
                     }
                 } else {
                     group(17) {
@@ -375,9 +380,12 @@ class Iap2IdentificationClient(private val session: Iap2Session) {
                         u16(3, 1)
                         void(4)
                         void(5)
+                        optionalString(6, config.themeAssetIdentifier)
                     }
                 }
-                if (config.vehicleStatusEnabled) electricVehicleComponents(config.manufacturer, config.chargingConnectors)
+                if (config.vehicleStatusEnabled) electricVehicleComponents(
+                    config.manufacturer, config.chargingConnectors, config.vehicleStatusCapabilities,
+                )
                 if (config.locationInformationEnabled) {
                     group(22) {
                         u16(0, 0)

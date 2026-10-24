@@ -105,6 +105,7 @@ internal enum class SettingsCategory {
 
 /** A settings card. Every entry needs one category in [SettingsInformationArchitecture]; see AGENTS.md. */
 internal enum class SettingsSection {
+    C11_ULTRA,
     CARPLAY_CONTROLS,
     WHEEL_KEYS,
     CONNECTION_SETUP,
@@ -148,6 +149,7 @@ internal object SettingsInformationArchitecture {
         ),
         SettingsCategory.DIAGNOSTICS to setOf(SettingsSection.DIAGNOSTICS),
         SettingsCategory.ADVANCED to setOf(
+            SettingsSection.C11_ULTRA,
             SettingsSection.CLUSTER_MAP,
             SettingsSection.EXPERIMENTAL_DISPLAY,
             SettingsSection.ADVANCED_MEDIA,
@@ -254,6 +256,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var updatingAdbSwitches = false
     private val adbSwitches = mutableMapOf<Int, Pair<Switch, () -> Boolean>>()
     private var hotspotStartupResult: CarHotspotTethering.Result? = null
+    private val foregroundHotspotRecovery by lazy { ForegroundHotspotRecovery.forC11(this) }
     @Volatile private var startupHotspotCancelled = false
     @Volatile private var vehicleProbeGeneration = 0
     @Volatile private var vehicleValidationGeneration = 0
@@ -374,6 +377,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         rememberLaunchAppearance()
         languagePreferenceAtCreate = AppLocale.preference(this)
         com.shilapi.xcertplay.hud.BydNavigationOutputs.onAppOpened(applicationContext)
+        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.acquire(applicationContext, this)
         PhoneAudioRoute.attach(applicationContext)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         if (Build.VERSION.SDK_INT >= 28) {
@@ -487,12 +491,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     override fun onStart() {
         super.onStart()
+        foregroundHotspotRecovery.start()
         // Results from the image picker and crop screens arrive before onResume.
         enforceInterfaceSize()
         CenterMapOverlay.onDiPlayScreenShown()
     }
 
     override fun onStop() {
+        foregroundHotspotRecovery.stop()
         cancelUsbPermissionSetup()
         clusterSafeAreaDialog?.dismiss()
         startupHotspotCancelled = true
@@ -543,6 +549,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     override fun onDestroy() {
+        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.release(this)
         settingsSearchPopup?.dismiss()
         appearanceObserverRemoval?.invoke()
         appearanceObserverRemoval = null
@@ -1697,6 +1704,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun allSettingsSections(content: LinearLayout) {
+        if (com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this)) {
+            filteredSection(content, SettingsSection.C11_ULTRA,
+                getString(R.string.settings_c11_ultra_title), R.drawable.ic_dp_dashboard, ::c11UltraControls)
+        }
         filteredSection(content, SettingsSection.CARPLAY_CONTROLS,
             getString(R.string.carplay_controls), R.drawable.ic_dp_controls) { card ->
             val gestureFingers = listOf(0, 2, 3, 4)
@@ -2429,7 +2440,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         section(content, getString(R.string.about_public_preview_prefix, version())) { card ->
             card.addView(label(getString(R.string.an_independent_carplay_receiver_for_android_head_units_wir), 17, TEXT))
             card.addView(updateRow())
-            toggle(card, getString(R.string.settings_background_update_checks),
+            if (UpdateAvailability.upstreamUpdatesSupported(this)) toggle(card, getString(R.string.settings_background_update_checks),
                 getString(R.string.settings_background_update_checks_description),
                 UpdateAvailability.backgroundChecksEnabled(this)) { UpdateAvailability.saveBackgroundChecksEnabled(this, it) }
         }
@@ -2554,6 +2565,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun updateRow(): View {
         val container = column().apply { setPadding(0, dp(12), 0, 0) }
+        if (!UpdateAvailability.upstreamUpdatesSupported(this)) {
+            container.addView(label(getString(R.string.settings_c11_update_channel), 14, MUTED))
+            return container
+        }
         updateMessage?.let { container.addView(label(it, 14, MUTED)) }
         when (updateStage) {
             UpdateStage.IDLE, UpdateStage.FAILED ->
@@ -2611,6 +2626,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun latestRelease(): UpdateRelease? {
+        if (!UpdateAvailability.upstreamUpdatesSupported(this)) return null
         return UpdateReleaseLookup.latest(version(), userAgent())
     }
 
@@ -2781,6 +2797,17 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun bydAdbSettings(parent: LinearLayout) {
         if (AirPlayPersistence.loadWirelessHotspotMode(this) != WirelessHotspotMode.MANUAL) return
+        if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this)) {
+            section(parent, getString(R.string.settings_car_hotspot_control), R.drawable.ic_dp_permissions) { card ->
+                adbToggle(card, R.string.auto_car_hotspot_title, R.string.auto_car_hotspot_description,
+                    read = { CarHotspotSettings.enabled(this) },
+                    permissions = { listOf(CarHotspotSetup.Permission.HOTSPOT) }) {
+                    CarHotspotSettings.setEnabled(this, it)
+                    if (!it) startupHotspotCancelled = true
+                }
+            }
+            return
+        }
         if (!CarHotspotSetup.isBydHeadUnit(this)) {
             if (CarHotspotTethering.appStartSupported()) {
                 Log.i("DiPlay-Hotspot", "BYD head unit not detected: hotspot control through system settings access")
@@ -3925,6 +3952,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     /** Steering-wheel keys for the dashboard map zoom and the CarPlay joystick: the switches, the key service and the keys. */
     // One place for the key service setup, above every feature that needs it.
     private fun wheelKeysSettings(card: LinearLayout) {
+        if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this)) {
+            c11AssistantControls(card)
+        }
         // The joystick and map zoom use BYD's media and custom keys.
         val byd = CarHotspotSetup.isBydHeadUnit(this)
         val zoomAvailable = wheelMapZoomAvailable()
@@ -3955,6 +3985,37 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             AirPlayPersistence.loadExternalController(this)) { AirPlayPersistence.saveExternalController(this, it) }
         // Keep previously configured controls reachable even if package detection misses the car.
         if (byd || zoomAvailable || WheelZoomSettings.joystick(this)) wheelKeyControls(card)
+    }
+
+    private fun c11AssistantControls(card: LinearLayout) {
+        val settings = com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings
+        toggle(card, getString(R.string.settings_c11_assistant), getString(R.string.settings_c11_assistant_description),
+            settings.enabled(this)) {
+            settings.setEnabled(this, it)
+            render()
+        }
+        if (!settings.enabled(this)) return
+        fun actionLabel(action: com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action): String = when (action) {
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.SYSTEM -> getString(R.string.settings_assistant_default)
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.NONE -> getString(R.string.settings_assistant_none)
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.CHATGPT -> getString(R.string.settings_assistant_chatgpt)
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.GEMINI -> getString(R.string.settings_assistant_gemini)
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.CLAUDE -> getString(R.string.settings_assistant_claude)
+        }
+        for (double in listOf(false, true)) {
+            val title = getString(if (double) R.string.settings_assistant_double else R.string.settings_assistant_single)
+            card.addView(button("$title · ${actionLabel(settings.action(this, double))}", false) {
+                val actions = com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.entries
+                appDialogBuilder().setTitle(title)
+                    .setSingleChoiceItems(actions.map(::actionLabel).toTypedArray(),
+                        actions.indexOf(settings.action(this, double))) { dialog, which ->
+                        settings.setAction(this, double, actions[which])
+                        dialog.dismiss()
+                        render()
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(SETTINGS_BLOCK_GAP_DP) })
+        }
+        card.addView(label(getString(R.string.settings_assistant_launch_limit), 14, MUTED))
     }
 
     // Map zoom only works where the dashboard map card used to show these controls.
@@ -4295,6 +4356,15 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(title), false) {
                 probeVehicleData(mayAsk = true)
             }.apply { isEnabled = !adbSwitchChangePending && !adbCheckInProgress }, matchButton(10, 56))
+        }
+    }
+
+    private fun c11UltraControls(card: LinearLayout) {
+        toggle(card, getString(R.string.settings_c11_ultra_switch),
+            getString(R.string.settings_c11_ultra_description),
+            com.shilapi.xcertplay.vehicle.C11UltraSettings.enabled(this)) {
+            com.shilapi.xcertplay.vehicle.C11UltraSettings.setEnabled(this, it)
+            markReconnectNeeded()
         }
     }
 
@@ -5281,7 +5351,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val custom = AirPlayPersistence.loadCustomAirPlayIconFile(this)?.let { BitmapFactory.decodeFile(it.absolutePath) }
         val preview = row().apply { gravity = Gravity.CENTER_VERTICAL }
         preview.addView(ImageView(this).apply {
-            setImageBitmap(custom ?: BitmapFactory.decodeResource(resources, R.raw.ic_car_home))
+            setImageBitmap(custom ?: CarButtonBranding.iconBytes(this@DiPlayActivity).let {
+                BitmapFactory.decodeByteArray(it, 0, it.size)
+            })
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = rounded(SURFACE, BORDER)
             clipToOutline = true
@@ -5615,6 +5687,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         appendLine("Authentication: local experimental beta identity; no remote fallback")
         appendLine("CarPlay setup: ${if (setupError == null) "ready" else "authentication unavailable"}")
+        appendLine(com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.diagnosticReport(appContext))
         appendLine("Saved video preference (may differ from active session): ${if (AirPlayPersistence.loadHevcEnabled(appContext)) "HEVC" else "H.264"}; ${AirPlayPersistence.loadFps(appContext)} fps")
         appendLine("Media-key audio focus: ${if (AirPlayPersistence.loadDisableMediaKeyAudioFocus(appContext)) "disabled" else "enabled"}")
         appendLine("MTK decoder tuning preference: ${if (AirPlayPersistence.loadMtkDecoderTuning(appContext)) "enabled" else "disabled"}")

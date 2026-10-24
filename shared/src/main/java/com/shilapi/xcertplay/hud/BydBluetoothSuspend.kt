@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -54,6 +55,7 @@ object BydBluetoothSuspend {
         log: (String) -> Unit = {},
         stillActive: () -> Boolean = { true },
     ) {
+        if (!VehicleIntegrationPolicy.allowsByd(context)) return
         synchronized(gate) {
             if (!stillActive()) return
             val state = lease(context)
@@ -74,6 +76,7 @@ object BydBluetoothSuspend {
 
     /** Retire only this controller's work; a late old-controller close cannot release a new one. */
     fun resume(context: Context, owner: Any, log: (String) -> Unit = {}) {
+        if (!VehicleIntegrationPolicy.allowsByd(context)) return
         synchronized(gate) {
             val state = lease(context)
             val ticket = state.end(owner) ?: state.recoveryOnAppOpen() ?: return
@@ -84,6 +87,7 @@ object BydBluetoothSuspend {
     }
 
     fun onAppOpened(context: Context) {
+        if (!VehicleIntegrationPolicy.allowsByd(context)) return
         synchronized(gate) {
             val state = lease(context)
             val ticket = state.recoveryOnAppOpen() ?: return
@@ -95,6 +99,7 @@ object BydBluetoothSuspend {
 
     /** Bounded recovery before wireless bootstrap; never enables a radio that was already OFF. */
     fun resumeAndWait(context: Context, adapter: BluetoothAdapter?, timeoutMillis: Long = STATE_TIMEOUT_MILLIS): Boolean {
+        if (!VehicleIntegrationPolicy.allowsByd(context)) return adapter?.isEnabled == true
         val task = synchronized(gate) {
             val state = lease(context)
             val ticket = state.beforeHandshake()
@@ -108,6 +113,7 @@ object BydBluetoothSuspend {
     }
 
     fun isSuspendedByUs(context: Context): Boolean {
+        if (!VehicleIntegrationPolicy.allowsByd(context)) return false
         val app = context.applicationContext
         return app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_RESTORE_ENABLED, false) && radioEnabled(app) == false

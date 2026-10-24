@@ -75,6 +75,7 @@ internal object BackgroundUpdateScheduler {
     private const val OPEN_WORK = "diplay-open-update-check"
 
     fun schedule(context: Context) {
+        if (!UpdateAvailability.upstreamUpdatesSupported(context)) return
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()

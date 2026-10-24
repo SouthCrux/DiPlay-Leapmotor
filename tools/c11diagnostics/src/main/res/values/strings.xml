@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_title">C11 Diagnóstico · 0.4</string>
+    <string name="oem_open">Señales OEM (experimental)…</string>
+    <string name="oem_title">Señales OEM (experimental)</string>
+    <string name="oem_explanation">Escucha SOC, carga y autonomía candidata mediante la biblioteca pública del coche. Abre una suscripción local de lectura. La primera entrega puede venir de caché; los tiempos son de recepción, sin fecha de origen verificada. Al terminar guarda el informe privado, cierra el proceso y vuelve a la pantalla principal con el resultado.</string>
+    <string name="oem_scan_seconds">Escuchar durante %1$d segundos</string>
+    <string name="oem_waiting_seconds">Escuchando durante %1$d segundos…</string>
+    <string name="oem_scan_first">Pulsa el botón para iniciar una única escucha. Para repetirla, sal y vuelve a entrar.</string>
+    <string name="explanation">Consulta puntual de pantallas y datos EV. No controla el coche. Los resultados describen esta app y este momento; no prueban soporte Ultra.</string>
+    <string name="scan">Consultar ahora</string>
+    <string name="energy_permission">Autorizar lectura de energía…</string>
+    <string name="energy_explanation">Abre el diálogo de Android para conceder a esta app acceso a energía y autonomía. Es opcional; no concede acceso a climatización ni controles.</string>
+    <string name="share">Compartir informe…</string>
+    <string name="share_title">Compartir diagnóstico C11</string>
+    <string name="waiting">Leyendo…</string>
+    <string name="permission_result">Permisos actualizados. Pulsa «Consultar ahora» para obtener una muestra nueva.</string>
+    <string name="scan_first">Pulsa «Consultar ahora» para generar el informe.</string>
+    <string name="camera_open">Captura de cámaras exteriores</string>
+    <string name="camera_title">Captura puntual de cámara</string>
+    <string name="camera_explanation">Elegí una cámara. Se guardará una muestra bruta local para verificar el formato de imagen. El acceso del SDK depende del firmware.</string>
+    <string name="camera_front">Capturar delantera</string>
+    <string name="camera_back">Capturar trasera</string>
+    <string name="camera_left">Capturar izquierda</string>
+    <string name="camera_right">Capturar derecha</string>
+    <string name="camera_waiting">Esperando selección.</string>
+    <string name="camera_capturing">Capturando una muestra…</string>
+    <string name="wiper_open">Investigar estados de limpiaparabrisas</string>
+    <string name="wiper_title">Escucha de limpiaparabrisas y lluvia</string>
+    <string name="wiper_explanation">Registra muestras de candidatos OEM sin accionar los limpiaparabrisas. La ruta, el tipo y el significado aún necesitan contraste: el informe conserva bytes y no interpreta velocidad, AUTO ni lluvia.</string>
+</resources>

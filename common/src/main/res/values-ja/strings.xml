@@ -981,4 +981,17 @@
     <string name="black_corner_overlay_off">オフ</string>
     <string name="black_corner_overlay_value">%1$d dp</string>
     <string name="iphone_corner_mask_mode">iPhoneのマスク（実験的機能）</string>
+    <string name="settings_c11_assistant">ステアリングのアシスタント（実験的機能）</string>
+    <string name="settings_c11_assistant_description">CarPlayの表示中に使うC11の音声ボタンを設定します。変更はCarPlayに戻ると適用されます。</string>
+    <string name="settings_assistant_single">1回押す</string>
+    <string name="settings_assistant_double">2回押す</string>
+    <string name="settings_assistant_default">標準のアシスタント</string>
+    <string name="settings_assistant_none">何もしない</string>
+    <string name="settings_assistant_launch_limit">標準のアシスタントは接続中のiPhoneのSiriです。ChatGPT、Gemini、Claudeの起動は実験的機能です。アプリのインストールが必要で、起動しても音声モードが始まらない、またはCarPlayに表示されない場合があります。</string>
+    <string name="settings_assistant_chatgpt">ChatGPT</string>
+    <string name="settings_assistant_gemini">Gemini</string>
+    <string name="settings_assistant_claude">Claude</string>
+    <string name="settings_c11_ultra_title">CarPlay Ultra プロトタイプ（実験的機能）</string>
+    <string name="settings_c11_ultra_switch">Ultra の接続交渉をテスト</string>
+    <string name="settings_c11_ultra_description">Apple の参照リソースパッケージを使用して、iPhone との Ultra セッションの接続交渉をテストします。完全な Ultra インターフェースはまだ利用できません。CarPlay の再接続時に適用されます。</string>
 </resources>

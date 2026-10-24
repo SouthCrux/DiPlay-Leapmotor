@@ -939,4 +939,17 @@
     <string name="black_corner_overlay_off">关闭</string>
     <string name="black_corner_overlay_value">%1$d dp</string>
     <string name="iphone_corner_mask_mode">iPhone 遮罩（实验性）</string>
+    <string name="settings_c11_assistant">方向盘助手（实验性）</string>
+    <string name="settings_c11_assistant_description">设置 CarPlay 显示时使用的 C11 实体语音按钮。返回 CarPlay 后应用更改。</string>
+    <string name="settings_assistant_single">单击</string>
+    <string name="settings_assistant_double">双击</string>
+    <string name="settings_assistant_default">默认助手</string>
+    <string name="settings_assistant_none">无操作</string>
+    <string name="settings_assistant_launch_limit">默认助手为所连接 iPhone 上的 Siri。启动 ChatGPT、Gemini 或 Claude 属于实验性功能：必须安装相应应用，且打开应用不一定会启动语音模式或在 CarPlay 中显示。</string>
+    <string name="settings_assistant_chatgpt">ChatGPT</string>
+    <string name="settings_assistant_gemini">Gemini</string>
+    <string name="settings_assistant_claude">Claude</string>
+    <string name="settings_c11_ultra_title">CarPlay Ultra 原型（实验性）</string>
+    <string name="settings_c11_ultra_switch">测试 Ultra 握手</string>
+    <string name="settings_c11_ultra_description">使用 Apple 参考资源包测试与 iPhone 的 Ultra 会话协商。完整的 Ultra 界面尚不可用。重新连接 CarPlay 后生效。</string>
 </resources>

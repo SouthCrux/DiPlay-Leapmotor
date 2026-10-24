@@ -4,6 +4,7 @@ import com.shilapi.xcertplay.CarPlayViewAreas.Kind
 import com.shilapi.xcertplay.airplay.AirPlayInfoPlist.DOCK_EDGE_BOTTOM
 import com.shilapi.xcertplay.airplay.AirPlayInfoPlist.DOCK_EDGE_DRIVER_SIDE
 import com.shilapi.xcertplay.airplay.AirPlayViewArea
+import com.shilapi.xcertplay.airplay.AirPlayDisplayConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -11,6 +12,17 @@ import org.junit.Test
 class CarPlayViewAreasTest {
     // On a Tang, BYD's split screen gives DiPlay 1270x1208 of the 2560x1440 screen.
     private val split = 1270f / 2560 to 1208f / 1440
+
+    @Test fun resourceCanvasCannotInheritOrdinaryDockAndSplitAreas() {
+        val ordinary = CarPlayViewAreas.build(2560, 1176, CarPlayDock.BOTTOM, split)!!
+        val declared = AirPlayDisplayConfig(2560, 1176, viewAreas = ordinary.areas)
+        assertEquals(ordinary, ordinary.matchingDeclaration(declared))
+        // The reference binding replaces the video canvas and removes ordinary view areas.
+        assertNull(ordinary.matchingDeclaration(AirPlayDisplayConfig(1920, 720)))
+        assertNull(ordinary.matchingDeclaration(declared.copy(viewAreas = listOf(AirPlayViewArea(1920, 720)))))
+        // The same ordinary route remains usable after leaving the experiment.
+        assertEquals(ordinary, ordinary.matchingDeclaration(declared))
+    }
 
     @Test
     fun automaticDockWithoutSplitScreenNeedsNoAreas() {

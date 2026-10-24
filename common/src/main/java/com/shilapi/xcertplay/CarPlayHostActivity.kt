@@ -199,8 +199,10 @@ class CarPlayHostActivity : ComponentActivity() {
             hardwareVersion = "1.0",
             carPlayUsbInterfaceNumber = 3,
             locationInformationEnabled = locationReportingEnabled,
-            vehicleStatusEnabled = com.shilapi.xcertplay.hud.BydOutputSettings.batteryToIphoneActive(this),
-            chargingConnectors = com.shilapi.xcertplay.hud.BydOutputSettings.chargingConnectors(this),
+            vehicleStatusEnabled = com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this) ||
+                com.shilapi.xcertplay.hud.BydOutputSettings.batteryToIphoneActive(this),
+            chargingConnectors = if (com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this)) null
+                else com.shilapi.xcertplay.hud.BydOutputSettings.chargingConnectors(this),
             vehicleSpeedEnabled = locationReportingEnabled && com.shilapi.xcertplay.hud.BydOutputSettings.wheelSpeedToIphoneActive(this),
         ),
         label = "DiPlay",
@@ -437,8 +439,28 @@ class CarPlayHostActivity : ComponentActivity() {
     private var externalActivityInProgress = false
     private var sink: AndroidMediaSink? = null
     private var controller: CarPlayController? = null
+    private var referenceCenterHost: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost? = null
+    private var referenceCenterAttachment: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost.Attachment? = null
+    private var referencePreparationGeneration: Int? = null
+    private var referencePreparing = false
+    private var referenceFallback = false
+    private var referenceBufferOverride = false
+    private var referenceOutputReady = false
+    private val referenceTouchRouter = com.shilapi.xcertplay.ultra.UltraHostTouchRouter()
+    private var ultraBatteryCard: UltraBatteryCard? = null
+    private var c11VehicleSidebar: C11VehicleSidebar? = null
+    private var ultraHeaderBackground: UltraHeaderBackground? = null
+    private fun transparentUltraHeaderEnabled(): Boolean =
+        resources.getBoolean(R.bool.config_ultra_transparent_header) &&
+            com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this)
+    private var ultraParkedObservation: com.shilapi.xcertplay.vehicle.LeapmotorParkedIntegration.Lease? = null
+    private var ultraParkedSession: AirPlaySession? = null
+    private var lastUltraParkedDiagnostic: String? = null
+    internal var ultraParkedObservationFactory: (Context) -> com.shilapi.xcertplay.vehicle.LeapmotorParkedIntegration.Lease =
+        com.shilapi.xcertplay.vehicle.LeapmotorParkedIntegration::acquire
     private val videoSurfaceOwner = CarPlayVideoSurfaceOwner<Surface>(
         detach = { surface ->
+            if (Build.VERSION.SDK_INT >= 26) referenceCenterAttachment?.detach(surface)
             sink?.clearSurface(SCREEN_TYPE_MAIN, surface)
             sink?.clearSurface(SCREEN_TYPE_ALT, surface)
         },
@@ -446,7 +468,7 @@ class CarPlayHostActivity : ComponentActivity() {
     )
     private val currentSurface: Surface? get() = videoSurfaceOwner.current
     private var currentSurfaceTexture: SurfaceTexture? = null
-    private var clusterPresentation: ClusterMapPresentation? = null
+    private var clusterPresentation: ClusterMapWindow? = null
     private var clusterSurface: Surface? = null
     private var clusterMonitor: DiLink51ClusterMonitor? = null
     private var detectedCluster = ClusterActivityState.Snapshot(null, false)
@@ -601,6 +623,30 @@ class CarPlayHostActivity : ComponentActivity() {
     private var failurePendingAfterMenu: CarPlayStatus.Failed? = null
     private val shuttingDown = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val foregroundHotspotRecovery by lazy { ForegroundHotspotRecovery.forC11(this) }
+    private val c11VoiceButton by lazy {
+        com.shilapi.xcertplay.vehicle.LeapmotorVoiceButton(
+            eligible = { activeAirPlaySession != null && hostAppearanceResumed && !inCall(this) },
+            single = { invokeC11Assistant(false) },
+            double = { invokeC11Assistant(true) },
+        )
+    }
+    private fun invokeC11Assistant(double: Boolean) {
+        val settings = com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings
+        if (!settings.enabled(this) || activeAirPlaySession == null || inCall(this)) return
+        val action = settings.action(this, double)
+        when (action) {
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.NONE -> Unit
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.Action.SYSTEM ->
+                appendLog("C11 voice button: default assistant Siri queued=${controller?.requestSiri() == true}")
+            else -> {
+                val queued = controller?.requestAssistantApp(action.app!!) { sent ->
+                    mainHandler.post { appendLog("C11 voice button: ${action.name} launch request sent=$sent; opening unconfirmed") }
+                } == true
+                appendLog("C11 voice button: ${action.name} launch request queued=$queued")
+            }
+        }
+    }
     private val requestDelayedAssignedSiri = Runnable {
         val pending = delayedDoubleSiri
         delayedDoubleSiri = null
@@ -684,7 +730,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private val expireOldLogLines = Runnable { refreshLogView(System.currentTimeMillis()) }
     private val refreshTurnOverlay = object : Runnable {
         override fun run() {
-            com.shilapi.xcertplay.hud.BydNavigationOutputs.refreshTurnOverlay()
+            com.shilapi.xcertplay.hud.CarPlayTurnOverlay.refresh()
             mainHandler.postDelayed(this, 1_000L)
         }
     }
@@ -693,6 +739,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private val pollConfiguration = object : Runnable {
         override fun run() {
             refreshConfiguration(source = ThemeModeDiagnostics.Source.POLL)
+            refreshUltraVehicleUi()
             mainHandler.postDelayed(this, CONFIGURATION_POLL_INTERVAL_MILLIS)
         }
     }
@@ -724,6 +771,7 @@ class CarPlayHostActivity : ComponentActivity() {
         }
 
         override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {
+            currentSurface?.let(::attachSurface)
             updateVideoLayout(width, height)
             scheduleDisplaySize(width, height)
         }
@@ -758,6 +806,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             if (holder !== fallbackVideoView?.holder) return
+            if (Build.VERSION.SDK_INT >= 26) referenceCenterAttachment?.updateSurface(holder.surface, width, height)
             // Holder dimensions describe the fitted video, not the host window/CarPlay canvas.
             videoView?.let { updateVideoLayout(it.width, it.height) }
         }
@@ -779,7 +828,14 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (transparentUltraHeaderEnabled()) setTheme(R.style.Theme_Xcertplay_UltraWallpaper)
         super.onCreate(savedInstanceState)
+        if (transparentUltraHeaderEnabled()) {
+            window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        }
+        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.acquire(applicationContext, this)
         NavigationWidgetUpdater.attach(applicationContext)
         CarPlayCallKeys.install(applicationContext)
         CenterMapOverlay.requestShow = ::showCenterMap
@@ -829,6 +885,7 @@ class CarPlayHostActivity : ComponentActivity() {
                 "transport=${if (wirelessEnabled) "wireless" else "wired"}",
         )
         val reusedBackgroundSession = adoptBackgroundSession()
+        renewC11ClusterRoute()
         microphoneAvailable =
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         microphonePermissionResolved = microphoneAvailable
@@ -839,6 +896,29 @@ class CarPlayHostActivity : ComponentActivity() {
         } else {
             microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
         }
+    }
+
+    private fun renewC11ClusterRoute() {
+        if (!com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this) ||
+            !AirPlayPersistence.loadClusterMapEnabled(this) || LeapmotorClusterDisplay.findDisplay(this) != null) return
+        val app = applicationContext
+        Thread({
+            val renewed = runCatching {
+                LocalAdb(com.shilapi.xcertplay.adb.AdbKeys.load(app)).use { adb ->
+                    if (adb.connect(mayAsk = false) != LocalAdb.Access.READY) false
+                    else LeapmotorClusterDisplay.refreshRoute(app, adb::shell)
+                }
+            }.getOrDefault(false)
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                appendLog("C11 cluster route renewal: verified=$renewed")
+                if (renewed) {
+                    ensureClusterPresentation()
+                    if (controller != null && !clusterStreamOnDisplay)
+                        reconnectAfterLoss("C11 cluster route renewed after reboot; requesting its stream")
+                }
+            }
+        }, "c11-cluster-route").start()
     }
 
     private fun loadPersistedSettings() {
@@ -1096,6 +1176,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        foregroundHotspotRecovery.start()
         isActivityStarted = true
         logThemeState(ThemeModeDiagnostics.Source.START, resources.configuration)
         mainHandler.removeCallbacks(pollConfiguration)
@@ -1109,8 +1190,15 @@ class CarPlayHostActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this) &&
+            com.shilapi.xcertplay.vehicle.LeapmotorAssistantSettings.enabled(this)) {
+            c11VoiceButton.start()
+            com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.listenForVoiceButton(this, c11VoiceButton::receive)
+        }
         WheelKeyService.restoreIfNeeded(this)
         hostAppearanceResumed = true
+        if (Build.VERSION.SDK_INT >= 26) referenceCenterAttachment?.updateResumed(true)
+        refreshUltraVehicleUi()
         updateCallPopupGuard()
         val savedNightMode = AirPlayPersistence.loadCarPlayNightMode(this)
         val savedThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
@@ -1177,7 +1265,7 @@ class CarPlayHostActivity : ComponentActivity() {
         settingsGestureHint?.text = settingsGestureHintText()
         ensureClusterPresentation()
         AirPlayPersistence.overlaySettingsListener = { runOnUiThread { applyClusterTurnOverlay() } }
-        com.shilapi.xcertplay.hud.BydNavigationOutputs.setTurnOverlayListener(clusterTurnOverlayListener)
+        com.shilapi.xcertplay.hud.CarPlayTurnOverlay.setListener(clusterTurnOverlayListener)
         mainHandler.removeCallbacks(refreshTurnOverlay)
         mainHandler.post(refreshTurnOverlay)
         var systemBarsChanged = false
@@ -1257,6 +1345,12 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun ensureClusterPresentation() {
+        if (controller?.suppressesConventionalCluster == true) {
+            clusterLaunchGate.reset()
+            dismissClusterPresentation()
+            ClusterActivityOutput.stop(this)
+            return
+        }
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) {
             clusterLaunchGate.reset()
             dismissClusterPresentation()
@@ -1283,7 +1377,10 @@ class CarPlayHostActivity : ComponentActivity() {
             appendLog("Cluster map: no cluster projection display among ${ClusterMapPresentation.describeDisplays(this)}")
             return
         }
-        val presentation = ClusterMapPresentation(this, display, theme) { surface -> runOnUiThread { onClusterSurface(surface) } }
+        val surfaceChanged: (Surface?) -> Unit = { surface -> runOnUiThread { onClusterSurface(surface) } }
+        val presentation: ClusterMapWindow = if (Build.VERSION.SDK_INT >= 28 && LeapmotorClusterDisplay.accepts(this, display))
+            LeapmotorClusterMapOverlay(this, display, surfaceChanged)
+        else ClusterMapPresentation(this, display, theme, surfaceChanged)
         // The system dismisses a presentation when its display goes away; allow a new one on resume.
         presentation.setOnDismissListener {
             if (clusterPresentation === presentation) {
@@ -1426,6 +1523,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun onClusterSurface(surface: Surface?) {
+        if (surface != null && controller?.suppressesConventionalCluster == true) return
         if (clusterSurface === surface) return
         // A direct handoff lets MediaCodec.setOutputSurface preserve its reference frames.
         // Clearing first would destroy the decoder and can leave stream 111 waiting for an IDR.
@@ -1452,7 +1550,8 @@ class CarPlayHostActivity : ComponentActivity() {
     // finish after the session has already asked for the virtual fallback stream.
     private val clusterDisplayListener = object : android.hardware.display.DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
-            if (isDestroyed || !AirPlayPersistence.loadClusterMapEnabled(this@CarPlayHostActivity)) return
+            if (isDestroyed || controller?.suppressesConventionalCluster == true ||
+                !AirPlayPersistence.loadClusterMapEnabled(this@CarPlayHostActivity)) return
             val display = ClusterMapPresentation.findDisplay(this@CarPlayHostActivity, effectiveClusterTheme())
             if (display?.displayId != displayId) return
             appendLog("Cluster map: display ${display.name} appeared")
@@ -1483,6 +1582,13 @@ class CarPlayHostActivity : ComponentActivity() {
         }
         val theme = effectiveClusterTheme()
         val display = ClusterMapPresentation.findDisplay(this, theme)
+        if (display != null && LeapmotorClusterDisplay.accepts(this, display)) {
+            clusterStreamOnDisplay = true
+            return LeapmotorClusterDisplay.streamConfig(AirPlayPersistence.loadClusterContent(this)).also {
+                MapMirrors.streamAspect = it.widthPixels.toDouble() / it.heightPixels
+                appendLog("C11 cluster: requesting ${it.widthPixels}x${it.heightPixels}; display=${display.displayId} tile=1200,0,720,720")
+            }
+        }
         if (display != null) {
             val size = ClusterMapPresentation.sizeOf(display)
             if (size.x > 0 && size.y > 0) {
@@ -1554,6 +1660,8 @@ class CarPlayHostActivity : ComponentActivity() {
 
     // Hardware navigation belongs to the iPhone-rendered CarPlay UI, not Android View focus.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (CarPlayMediaKeys.nativeBluetoothOwnsControls() &&
+            CarPlayMediaButton.forKeyCode(event.keyCode) != null) return super.dispatchKeyEvent(event)
         val physicalKey = Triple(event.deviceId, event.keyCode, event.scanCode)
         val downOrUp = event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP
         if (downOrUp && physicalKey in legacySiriPresses) {
@@ -1732,8 +1840,12 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.stopListeningForVoiceButton(this)
+        c11VoiceButton.stop()
         cancelTemporarySystemBars()
         hostAppearanceResumed = false
+        if (Build.VERSION.SDK_INT >= 26) referenceCenterAttachment?.updateResumed(false)
+        refreshUltraVehicleUi()
         updateCallPopupGuard()
         AppAppearanceRuntime.clearHost(this)
         nightModeController.pause()
@@ -1741,6 +1853,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        foregroundHotspotRecovery.stop()
         fpsCounter?.stop()
         closePicturePanel()
         // The controller, USB/iAP2 link, and VPN attachment intentionally outlive the UI.
@@ -1806,7 +1919,7 @@ class CarPlayHostActivity : ComponentActivity() {
         // Wheel zoom needs a physical map; centre-screen copies must not suppress that eligibility.
         val surface = clusterSurface?.takeIf { it.isValid }
         val presentation = clusterPresentation
-        val presented = surface != null && presentation?.isShowing == true && presentation.mapVisible &&
+        val presented = surface != null && presentation?.showing() == true && presentation.mapVisible &&
             presentation.outputSurface === surface
         val direct = surface != null && adbClusterConfigured && ClusterActivityOutput.hasConfirmedRoute()
         controller?.setDashboardMapOutputVisible(presented || direct)
@@ -1836,6 +1949,17 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        closeUltraParkedObservation()
+        ultraBatteryCard?.hide()
+        c11VehicleSidebar?.visibility = View.GONE
+        ultraHeaderBackground?.setHeader(null)
+        if (Build.VERSION.SDK_INT >= 26) {
+            referenceCenterAttachment?.close()
+            referenceCenterAttachment = null
+            // A prepared candidate without a controller has no background owner.
+            if (controller?.referenceCenterHost !== referenceCenterHost) retireUnusedReferenceHost()
+        }
+        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.release(this)
         mainHandler.removeCallbacks(hideTemporarySystemBars)
         discardLastPicture()
         if (pictureCopyThreadStarted) pictureCopyThread.quitSafely()
@@ -1856,7 +1980,7 @@ class CarPlayHostActivity : ComponentActivity() {
         pendingDoubleSiri = null
         delayedDoubleSiri = null
         AirPlayPersistence.overlaySettingsListener = null
-        com.shilapi.xcertplay.hud.BydNavigationOutputs.setTurnOverlayListener(null)
+        com.shilapi.xcertplay.hud.CarPlayTurnOverlay.setListener(null)
         com.shilapi.xcertplay.hud.BydNavigationOutputs.setClusterNaviModeListener(null)
         clusterMonitor?.stop()
         getSystemService(android.hardware.display.DisplayManager::class.java)
@@ -1885,7 +2009,11 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun buildContentView(): View {
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        val root = FrameLayout(this).apply {
+            if (transparentUltraHeaderEnabled()) {
+                ultraHeaderBackground = UltraHeaderBackground().also { background = it }
+            } else setBackgroundColor(Color.BLACK)
+        }
         val video = TextureView(this).apply {
             isOpaque = false
             surfaceTextureListener = textureListener
@@ -2000,6 +2128,11 @@ class CarPlayHostActivity : ComponentActivity() {
         }.also { root.addView(it, FrameLayout.LayoutParams(0, 0)) }
         sidePanel = buildSidePanel().also { root.addView(it, FrameLayout.LayoutParams(0, 0)) }
         sidePanelTab = buildSidePanelTab().also { root.addView(it, FrameLayout.LayoutParams(0, 0)) }
+        ultraBatteryCard = UltraBatteryCard(this, transparentUltraHeaderEnabled(),
+            compactHeader = com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this)).also { card ->
+            root.addView(card.view, FrameLayout.LayoutParams(0, 0))
+        }
+        c11VehicleSidebar = C11VehicleSidebar(this).also { root.addView(it, FrameLayout.LayoutParams(0, 0)) }
         var preparationHeight = -1
         fun updatePreparationLayout() {
             val height = viewport.height - viewport.paddingTop - viewport.paddingBottom
@@ -2050,7 +2183,10 @@ class CarPlayHostActivity : ComponentActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(viewport) { _, insets ->
             val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             viewport.setPadding(safe.left, safe.top, safe.right, safe.bottom)
-            viewport.post { updatePreparationLayout() }
+            viewport.post {
+                updatePreparationLayout()
+                refreshUltraVehicleUi()
+            }
             insets
         }
         ViewCompat.requestApplyInsets(viewport)
@@ -4756,7 +4892,8 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun createAirPlayConfig(size: DisplaySize): AirPlayConfig {
         // The home settings page can change the name while this host stays alive.
         if (!menuOpen) oemLabel = AirPlayPersistence.loadOemLabel(this)
-        val safeWidth = (size.width / 2 * 2).coerceAtLeast(2)
+        val viewportWidth = size.width - c11SidebarWidth(size.width)
+        val safeWidth = (viewportWidth / 2 * 2).coerceAtLeast(2)
         val safeHeight = (size.height / 2 * 2).coerceAtLeast(2)
         val alignedSize = DisplaySize(safeWidth, safeHeight)
         val physical = resolvePhysicalSize(alignedSize)
@@ -4885,14 +5022,14 @@ class CarPlayHostActivity : ComponentActivity() {
             CarPlayViewAreas.build(display.widthPixels, display.heightPixels, listOf(
                 CarPlayViewAreas.Screen(display.widthPixels, display.heightPixels, portrait = display.heightPixels > display.widthPixels),
             ), dock, splitWindow, startPortrait = display.heightPixels > display.widthPixels,
-                sidePanel = SidePanelSettings.enabled(this), rightHandDrive = rightHandDrive)
+                sidePanel = SidePanelSettings.enabled(this) && !c11SidebarEnabled(), rightHandDrive = rightHandDrive)
         } else {
             val (landscape, portrait) = CarPlayRotation.turningAreas(square, size.width, size.height,
                 screen.widthPixels, screen.heightPixels)
             CarPlayViewAreas.build(square, square, listOf(
                 CarPlayViewAreas.Screen(landscape.first, landscape.second, portrait = false),
                 CarPlayViewAreas.Screen(portrait.first, portrait.second, portrait = true),
-            ), dock, splitWindow, startPortrait = size.height > size.width, sidePanel = SidePanelSettings.enabled(this),
+            ), dock, splitWindow, startPortrait = size.height > size.width, sidePanel = SidePanelSettings.enabled(this) && !c11SidebarEnabled(),
                 rightHandDrive = rightHandDrive)
         }
         pendingViewAreas = viewAreas
@@ -4926,7 +5063,8 @@ class CarPlayHostActivity : ComponentActivity() {
             btMac = DiPlayBluetooth.localAddress(this) ?: DiPlayBootstrap.deviceId(airPlayIdentity),
             sourceVersion = "950.7.1",
             main = declared,
-            cluster = clusterDisplayConfig(),
+            cluster = if (referenceHandshakeEnabled() && referenceCenterHost == null) null
+                else clusterDisplayConfig()?.takeIf { !referenceHandshakeEnabled() || clusterStreamOnDisplay },
             rightHandDrive = rightHandDrive,
             hevc = sessionHevc,
             microphone = microphoneAvailable,
@@ -4939,7 +5077,23 @@ class CarPlayHostActivity : ComponentActivity() {
             mainBufferedAudio = AirPlayPersistence.loadMainBufferedAudio(this),
             speechWithout8And16Khz = AirPlayPersistence.loadSpeechWithout8And16Khz(this),
             disableAudioOutput = carBluetoothAudio,
-        )
+            ultraHandshake = referenceHandshakeEnabled(),
+            // The C11's read-only range service is independent of Ultra display negotiation.
+            // Session negotiation still requires fresh real data and acceptance by the iPhone.
+            vehicleStateProtocol = referenceHandshakeEnabled() ||
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this),
+        ).let {
+            if (it.ultraHandshake) {
+                pendingViewAreas = null
+                if (it.cluster == null) {
+                    adbClusterConfigured = false
+                    clusterStreamOnDisplay = false
+                }
+            }
+            if (Build.VERSION.SDK_INT >= 26 && it.ultraHandshake && referenceCenterHost != null) {
+                referenceCenterHost!!.themeBinding.withConventionalNavigation(it.cluster).configure(it).copy(hevc = false)
+            } else if (it.ultraHandshake) com.shilapi.xcertplay.vehicle.C11UltraSettings.configure(this, it) else it
+        }
     }
 
     /** Car Bluetooth audio: shows whether the iPhone keeps A2DP/HFP with the car now and once CarPlay runs. */
@@ -4989,7 +5143,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun defaultAirPlayIconBytes(): ByteArray =
         // Shown in CarPlay's app list as the "back to the car" button.
-        resources.openRawResource(R.raw.ic_car_home).use { it.readBytes() }
+        CarButtonBranding.iconBytes(this)
 
     private fun updateAirPlayIconPreview() {
         val preview = iconPreviewView ?: return
@@ -5001,7 +5155,7 @@ class CarPlayHostActivity : ComponentActivity() {
                 AirPlayPersistence.clearCustomAirPlayIcon(this)
             }
         }
-        val bitmap = customBitmap ?: BitmapFactory.decodeResource(resources, R.raw.placeholder_icon)
+        val bitmap = customBitmap ?: defaultAirPlayIconBytes().let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         preview.setImageBitmap(bitmap)
         iconStatusView?.text =
             if (customBitmap != null) getString(R.string.custom_1_1_icon) else getString(R.string.default_placeholder_icon)
@@ -5126,6 +5280,13 @@ class CarPlayHostActivity : ComponentActivity() {
         videoWidth: Int,
         videoHeight: Int,
         controllerGeneration: Int,
+    ): AndroidMediaSink = createMediaSink(videoWidth, videoHeight, controllerGeneration, emptyMap())
+
+    private fun createMediaSink(
+        videoWidth: Int,
+        videoHeight: Int,
+        controllerGeneration: Int,
+        videoDimensionsByStream: Map<Int, Pair<Int, Int>>,
     ): AndroidMediaSink {
         // Capture this session's log: late decoder shutdown must not write into a new session.
         val diagnosticLog = sessionLog
@@ -5162,6 +5323,7 @@ class CarPlayHostActivity : ComponentActivity() {
             mainVideoFrameRate = fps,
             vendorLowLatencyDecoder = AirPlayPersistence.loadLowLatencyDecoder(this),
             mtkDecoderTuningEnabled = AirPlayPersistence.loadMtkDecoderTuning(this),
+            videoDimensionsByStream = videoDimensionsByStream,
         )
     }
 
@@ -5170,7 +5332,128 @@ class CarPlayHostActivity : ComponentActivity() {
             sink = sink,
             microphoneEnabled = microphoneAvailable,
             audioCaptureDirectory = audioCaptureDirectory(),
-        )
+            vehicleStateProvider = if (com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this)) {
+                com.shilapi.xcertplay.transport.VehicleStatusProvider {
+                    com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.snapshot(applicationContext)
+                }
+            } else null,
+            climateSessionRegistry = if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this))
+                com.shilapi.xcertplay.vehicle.LeapmotorClimateIntegration.sessions else null,
+        ).also { media ->
+            if (Build.VERSION.SDK_INT >= 26) referenceCenterHost?.let(media::installReferenceCenterHost)
+        }
+
+    private fun referenceHandshakeEnabled(): Boolean =
+        !referenceFallback && com.shilapi.xcertplay.vehicle.C11UltraSettings.enabled(this)
+
+    /** Package IO is bounded but includes thousands of files; it must finish before controller startup. */
+    private fun prepareReferenceHost() {
+        if (Build.VERSION.SDK_INT < 28 || referencePreparing) return
+        val generation = restartGeneration
+        referencePreparationGeneration = generation
+        referencePreparing = true
+        val app = applicationContext
+        appendLog("Ultra reference: preparing packaged center off the UI thread")
+        Thread({
+            val result = runCatching {
+                com.shilapi.xcertplay.airplay.UltraReferenceCenterHost.prepareWithVehicleData(app,
+                    com.shilapi.xcertplay.transport.VehicleStatusProvider {
+                        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.snapshot(app)
+                    }) {
+                    com.shilapi.xcertplay.ultra.UltraReferenceCenterDraw.Session(it,
+                        com.shilapi.xcertplay.ultra.UltraVehiclePanelInput(app,
+                            com.shilapi.xcertplay.transport.VehicleStatusProvider {
+                                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.snapshot(app)
+                            }))
+                }
+            }
+            mainHandler.post {
+                referencePreparing = false
+                if (isDestroyed || shuttingDown.get() || generation != restartGeneration || controller != null ||
+                    !referenceHandshakeEnabled()) {
+                    result.getOrNull()?.let(::closeReferenceHostAsync)
+                    if (!isDestroyed && !shuttingDown.get()) maybeStartCarPlay()
+                    return@post
+                }
+                result.fold(onSuccess = { host ->
+                    bindReferenceHost(host)
+                    appendLog(if (host == null) "Ultra reference: no packaged selection; handshake probe unchanged"
+                        else "Ultra reference: center-only research selection ready; phone acceptance unverified")
+                }, onFailure = {
+                    referenceFallback = true
+                    appendLog("Ultra reference preparation failed (${it.javaClass.simpleName}); using ordinary CarPlay")
+                })
+                maybeStartCarPlay()
+            }
+        }, "diplay-ultra-prepare").apply { isDaemon = true; start() }
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    private fun bindReferenceHost(host: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost?) {
+        val previous = referenceCenterHost
+        referenceCenterAttachment?.close()
+        referenceCenterHost = host
+        referenceOutputReady = false
+        if (previous != null && previous !== host && controller?.referenceCenterHost !== previous) closeReferenceHostAsync(previous)
+        referenceCenterAttachment = host?.attachHost {
+            // Always post: failure may originate inside a protocol/decoder transaction or during adoption.
+            mainHandler.post { recoverReferenceFailure(host) }
+        }
+        val attached = referenceCenterAttachment
+        if (host != null && attached != null) attached.setOutputListener {
+            mainHandler.post { onReferenceOutputChanged(host, attached) }
+        }
+        referenceCenterAttachment?.updateResumed(hostAppearanceResumed)
+        if (host != null) {
+            discardLastPicture()
+            currentSurface?.let(::attachSurface)
+        }
+        updateDebugOverlays()
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    private fun onReferenceOutputChanged(host: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost,
+        attached: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost.Attachment) {
+        if (isDestroyed || shuttingDown.get() || referenceCenterHost !== host || referenceCenterAttachment !== attached) return
+        val next = attached.isOutputReady
+        if (next != referenceOutputReady) Log.i(TAG, "ultra output: canvasSubmitted=$next physicalPresentation=unverified")
+        referenceOutputReady = next
+        updateDebugOverlays()
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    private fun recoverReferenceFailure(host: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost) {
+        if (isDestroyed || shuttingDown.get() || referenceCenterHost !== host) return
+        referenceFallback = true
+        if (menuOpen || handshakeResetInProgress) {
+            mainHandler.postDelayed({ recoverReferenceFailure(host) }, 500L)
+            return
+        }
+        appendLog("Ultra reference failed reason=${host.failureReason}; rebuilding ordinary CarPlay")
+        Log.w(TAG, "ultra reference failure reason=${host.failureReason}; rebuilding ordinary CarPlay")
+        restartCarPlay("Recovering ordinary CarPlay after Ultra reference trial")
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    private fun closeReferenceHostAsync(host: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost) {
+        Thread({ host.close() }, "diplay-ultra-discard").apply { isDaemon = true; start() }
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    private fun retireUnusedReferenceHost() {
+        unbindReferenceHost()
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    private fun unbindReferenceHost() {
+        val previous = referenceCenterHost
+        referenceCenterAttachment?.close()
+        referenceCenterAttachment = null
+        referenceCenterHost = null
+        referenceOutputReady = false
+        referencePreparationGeneration = null
+        if (previous != null && controller?.referenceCenterHost !== previous) closeReferenceHostAsync(previous)
+    }
 
     private fun createSessionListener(controllerGeneration: Int): AirPlaySessionListener =
         object : AirPlaySessionListener {
@@ -5193,6 +5476,7 @@ class CarPlayHostActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     activeAirPlaySession = session
+                    refreshUltraVehicleUi()
                     val pending = pendingIphoneCornerMask
                     if (pending?.first === session) {
                         installIphoneCornerMask(session, pending.second.first, pending.second.second)
@@ -5231,15 +5515,27 @@ class CarPlayHostActivity : ComponentActivity() {
 
             override fun onSessionEnded(session: AirPlaySession) {
                 runOnUiThread {
+                    // Controller replacement can precede delivery of its new UI callback.
+                    // An old end must not restart that already live replacement connection.
+                    if (controllerGeneration == restartGeneration) {
+                        val replacement = controller?.currentAirPlaySession()
+                        if (replacement != null && replacement !== session) {
+                            activeAirPlaySession = replacement
+                            refreshUltraVehicleUi()
+                            return@runOnUiThread
+                        }
+                    }
                     val active = activeAirPlaySession
                     if (active != null && active !== session) {
                         // 探针或非活动握手结束时，保留当前播放会话。
                         appendLog("Non-active AirPlay connection ended; keeping the live session")
                         return@runOnUiThread
                     }
-                    if (controllerGeneration != restartGeneration || startupRetryStopped) return@runOnUiThread
-                    startupRetryBudget.disconnected()
+                    if (controllerGeneration != restartGeneration) return@runOnUiThread
                     activeAirPlaySession = null
+                    refreshUltraVehicleUi()
+                    if (startupRetryStopped) return@runOnUiThread
+                    startupRetryBudget.disconnected()
                     clearIphoneCornerMask()
                     CarPlayBackgroundSession.active = false
                     callPopupSessionReady = false
@@ -5350,6 +5646,9 @@ class CarPlayHostActivity : ComponentActivity() {
         adbClusterConfigured = AdbClusterRouter.enabled(this) && snapshot.controller.configuredClusterSize() ==
             (DiLink4ClusterDisplay.STREAM_WIDTH to DiLink4ClusterDisplay.STREAM_HEIGHT)
         controller = snapshot.controller
+        activeAirPlaySession = snapshot.controller.currentAirPlaySession()
+        if (Build.VERSION.SDK_INT >= 26) bindReferenceHost(snapshot.controller.referenceCenterHost)
+        if (snapshot.controller.ultraThemeProbeActive) ensureClusterPresentation()
         updateClusterMapShown()
         sink = snapshot.sink
         sessionDisplay = snapshot.display
@@ -5423,6 +5722,12 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun startCarPlay(size: DisplaySize) {
         if (CarPlayBackgroundSession.hasSession() && !CarPlayBackgroundSession.isOwner(this)) return
         if (shuttingDown.get() || menuOpen || handshakeResetInProgress || controller != null) return
+        if (referencePreparing) return
+        if (referenceHandshakeEnabled() && referencePreparationGeneration != restartGeneration) {
+            prepareReferenceHost()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 26 && !referenceHandshakeEnabled() && referenceCenterHost != null) retireUnusedReferenceHost()
         val controllerGeneration = restartGeneration
         // Settings → Connection can change the target while this screen stays open (#696).
         mfiTarget = AirPlayPersistence.loadMfiTarget(this)
@@ -5474,6 +5779,10 @@ class CarPlayHostActivity : ComponentActivity() {
             videoWidth = airPlayConfig.main.widthPixels,
             videoHeight = airPlayConfig.main.heightPixels,
             controllerGeneration = controllerGeneration,
+            videoDimensionsByStream = if (
+                com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this) && clusterStreamOnDisplay
+            ) airPlayConfig.cluster?.let { mapOf(SCREEN_TYPE_ALT to (it.widthPixels to it.heightPixels)) }
+                ?: emptyMap() else emptyMap(),
         )
         sink = renderer
         currentSurface?.let(::attachSurface)
@@ -5496,13 +5805,17 @@ class CarPlayHostActivity : ComponentActivity() {
             savePairRecord = { record -> AirPlayPersistence.saveLockdownRecord(this, record) },
             clearPairRecord = { AirPlayPersistence.clearLockdownRecord(this) },
             locationProvider = locationProvider,
-            vehicleStatusProvider = if (com.shilapi.xcertplay.hud.BydOutputSettings.batteryToIphoneActive(this)) {
+            vehicleStatusProvider = if (com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this)) {
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.provider(applicationContext)
+            } else if (com.shilapi.xcertplay.hud.BydOutputSettings.batteryToIphoneActive(this)) {
                 com.shilapi.xcertplay.hud.BydNavigationOutputs.batteryStatus(applicationContext)
             } else {
                 null
             },
+            referenceCenterHost = referenceCenterHost,
         )
         controller = next
+        if (next.ultraThemeProbeActive) ensureClusterPresentation()
         resetSidePanel() // a new session starts without the side panel
         updateClusterMapShown()
         CarPlayMediaKeys.attach(this, next)
@@ -5510,11 +5823,12 @@ class CarPlayHostActivity : ComponentActivity() {
         val display = CarPlaySessionDisplay(
             airPlayConfig.main.widthPixels, airPlayConfig.main.heightPixels,
             displayRotation(), hideTopBar, hideBottomBar, effectiveSize.width, effectiveSize.height,
-            viewAreas = pendingViewAreas,
+            viewAreas = pendingViewAreas?.matchingDeclaration(airPlayConfig.main),
             statusBarShown = statusBarShown(),
         )
         sessionDisplay = display
         videoView?.let { updateVideoLayout(it.width, it.height) }
+        currentSurface?.let(::attachSurface)
         CarPlayBackgroundSession.store(next, renderer, size.width, size.height, this, display) { completion ->
             runOnUiThread {
                 shutdown(terminateProcess = false, reason = "DiPlay disconnect", completion = completion)
@@ -5746,21 +6060,28 @@ class CarPlayHostActivity : ComponentActivity() {
 
 
 
+    private fun c11SidebarEnabled() = com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this) &&
+        !referenceHandshakeEnabled()
+
+    private fun c11SidebarWidth(width: Int): Int = if (c11SidebarEnabled())
+        C11VehicleSidebar.widthPixels(resources, width) else 0
+
     private fun contentRect(viewWidth: Int, viewHeight: Int): CarPlayVideoLayout {
         val display = sessionDisplay ?: return CarPlayVideoLayout(0f, 0f, viewWidth.toFloat(), viewHeight.toFloat())
+        val availableWidth = viewWidth - c11SidebarWidth(viewWidth)
         // In the head unit's split screen, or on a turning screen's square canvas, CarPlay draws in part of
         // the canvas; that area fills the window and the rest falls outside it. Video and touches both
         // follow this. An area of the whole canvas keeps the usual fit.
         display.viewAreas?.let { areas ->
             val area = areas.layoutArea(areas.current)
             if (area.width != display.width || area.height != display.height) {
-                val scaleX = viewWidth.toFloat() / area.width
+                val scaleX = availableWidth.toFloat() / area.width
                 val scaleY = viewHeight.toFloat() / area.height
                 return CarPlayVideoLayout(-area.originX * scaleX, -area.originY * scaleY,
                     display.width * scaleX, display.height * scaleY)
             }
         }
-        return CarPlayVideoLayout.fit(display.width, display.height, viewWidth, viewHeight)
+        return CarPlayVideoLayout.fit(display.width, display.height, availableWidth, viewHeight)
     }
 
     private fun updateVideoLayout(viewWidth: Int, viewHeight: Int) {
@@ -5788,6 +6109,7 @@ class CarPlayHostActivity : ComponentActivity() {
         }
         if (sidePanelShown) placeSidePanel(viewWidth, viewHeight)
         placeSidePanelTab(viewWidth, viewHeight)
+        refreshUltraVehicleUi()
     }
 
     private fun recordDetectedMaximum(size: DisplaySize) {
@@ -5917,6 +6239,7 @@ class CarPlayHostActivity : ComponentActivity() {
         updateCallPopupGuard()
         val oldController = controller
         val oldSink = sink
+        if (Build.VERSION.SDK_INT >= 26) unbindReferenceHost()
         CarPlayMediaKeys.detach(oldController)
         CarPlayBackgroundSession.clear(oldController, keepOwner = true)
         controller = null
@@ -6106,6 +6429,10 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun shutdown(terminateProcess: Boolean, reason: String, completion: () -> Unit = {}) {
         if (!shuttingDown.compareAndSet(false, true)) { completion(); return }
+        closeUltraParkedObservation()
+        ultraBatteryCard?.hide()
+        c11VehicleSidebar?.visibility = View.GONE
+        ultraHeaderBackground?.setHeader(null)
         callPopupSessionReady = false
         updateCallPopupGuard()
         resetSidePanel()
@@ -6115,6 +6442,7 @@ class CarPlayHostActivity : ComponentActivity() {
         mainHandler.removeCallbacks(applyDisplaySize)
         val oldController = controller
         val oldSink = sink
+        if (Build.VERSION.SDK_INT >= 26) unbindReferenceHost()
         CarPlayMediaKeys.detach(oldController)
         CarPlayBackgroundSession.clear(oldController)
         controller = null
@@ -6225,6 +6553,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     // Copies the SurfaceView's current picture (at half size) before its surface goes, waiting briefly for it.
     private fun captureLastPicture() {
+        if (referenceCenterHost != null) return
         val surfaceView = fallbackVideoView ?: return
         val bounds = fallbackVideoBounds ?: return
         if (!surfaceView.holder.surface.isValid) return
@@ -6245,6 +6574,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun showLastPicture() {
+        if (referenceCenterHost != null) return
         if (sink == null) return
         val picture = lastPicture ?: return
         val surfaceView = fallbackVideoView ?: return
@@ -6283,6 +6613,25 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun attachSurface(surface: Surface) {
+        if (Build.VERSION.SDK_INT >= 26 && referenceCenterHost != null) {
+            referenceBufferOverride = true
+            val display = referenceCenterHost!!.themeBinding.main
+            val texture = currentSurfaceTexture
+            if (texture != null) {
+                texture.setDefaultBufferSize(display.width, display.height)
+                referenceCenterAttachment?.updateSurface(surface, display.width, display.height)
+            } else fallbackVideoView?.holder?.let { holder ->
+                holder.setFixedSize(display.width, display.height)
+                referenceCenterAttachment?.updateSurface(surface, holder.surfaceFrame.width(), holder.surfaceFrame.height())
+            }
+            return
+        }
+        // Undo the explicit research buffer dimensions when rebuilding ordinary CarPlay.
+        if (referenceBufferOverride && sessionDisplay != null) {
+            sessionDisplay?.let { currentSurfaceTexture?.setDefaultBufferSize(it.width, it.height) }
+            fallbackVideoView?.holder?.setSizeFromLayout()
+            referenceBufferOverride = false
+        }
         sink?.setSurface(SCREEN_TYPE_MAIN, surface)
         if (AirPlayPersistence.loadClusterMapEnabled(this)) {
             clusterSurface?.let { sink?.setSurface(SCREEN_TYPE_ALT, it) }
@@ -6361,6 +6710,10 @@ class CarPlayHostActivity : ComponentActivity() {
             return true
         }
         val contacts = CarPlayTouchMapper.contacts(event, content)
+        if (referenceTouchRouter.dispatch(contacts,event.actionMasked == MotionEvent.ACTION_DOWN,
+                event.actionMasked == MotionEvent.ACTION_CANCEL) { points,canceled ->
+                Build.VERSION.SDK_INT >= 26 && referenceCenterAttachment?.handleTouch(points,canceled) == true
+            }) return true
         val queued = controller?.sendTouch(contacts) ?: false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN,
@@ -6451,7 +6804,113 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun updateDebugOverlays() {
         statusScrollView?.visibility = View.GONE
-        connectionPanel?.visibility = if (activeScreenStreamTypes.isEmpty()) View.VISIBLE else View.GONE
+        val outputReady = if (referenceCenterHost != null) referenceOutputReady else activeScreenStreamTypes.isNotEmpty()
+        connectionPanel?.visibility = if (outputReady) View.GONE else View.VISIBLE
+        refreshUltraVehicleUi()
+    }
+
+    /** Visible, manually selected Ultra only. This observation never enables video playback. */
+    private fun refreshUltraVehicleUi() {
+        ultraHeaderBackground?.setHeader(null)
+        val session = activeAirPlaySession
+        val observe = hostAppearanceResumed && !isDestroyed && !shuttingDown.get() &&
+            referenceCenterHost != null && referenceHandshakeEnabled() && session != null
+        // The C11's bounded map tile may show a real cached battery observation when no
+        // navigation owns it. This reads the existing lease; it never starts telemetry.
+        (clusterPresentation as? LeapmotorClusterMapOverlay)?.setVehicleSnapshot(
+            if (observe && referenceOutputReady && !menuOpen && picturePanel == null && !safeAreaEditorActive &&
+                CarPlayClusterDisplay.usesCustomTurnCard(AirPlayPersistence.loadClusterContent(this)))
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.snapshot(applicationContext) else null,
+        )
+        if (!observe || ultraParkedSession !== session) closeUltraParkedObservation()
+        if (observe && ultraParkedSession == null) {
+            ultraParkedSession = session
+            ultraParkedObservation = runCatching { ultraParkedObservationFactory(applicationContext) }
+                .onFailure { appendLog("C11 parked observation unavailable") }.getOrNull()
+        }
+        ultraParkedObservation?.diagnosticSnapshot()?.let { state ->
+            // Log transitions only; no per-frame log traffic, payloads or personal identifiers.
+            val key = "${state.sourceStatus}/${state.permissionGranted}/${state.readingState}/${state.parked}"
+            if (key != lastUltraParkedDiagnostic) {
+                lastUltraParkedDiagnostic = key
+                val message = "C11 parked observation: status=${state.sourceStatus} permission=${state.permissionGranted} " +
+                    "reading=${state.readingState} parked=${state.parked} policy=${state.freshnessPolicy} " +
+                    "oemAgeMs=${state.oemEventAgeMillis} deliveryAgeMs=${state.halDeliveryAgeMillis}"
+                Log.i("xcertplay-usb", message)
+                appendLog(message)
+            }
+        }
+        val sidebar = c11VehicleSidebar
+        val sidebarParent = sidebar?.parent as? FrameLayout
+        val showSidebar = c11SidebarEnabled() && hostAppearanceResumed && !isDestroyed && !shuttingDown.get() &&
+            session != null && activeScreenStreamTypes.isNotEmpty() && !menuOpen && picturePanel == null &&
+            !safeAreaEditorActive && sidebarParent != null && sidebarParent.width > 0
+        sidebar?.visibility = if (showSidebar) View.VISIBLE else View.GONE
+        if (showSidebar && sidebar != null && sidebarParent != null) {
+            val width = c11SidebarWidth(sidebarParent.width)
+            if (sidebar.layoutParams.width != width)
+                sidebar.layoutParams = FrameLayout.LayoutParams(width, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.RIGHT)
+            sidebar.update(com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.snapshot(applicationContext),
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.lastReportedExterior(applicationContext)?.celsius,
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.tirePressures(applicationContext),
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.tireTemperatures(applicationContext),
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.currentTripConsumption(applicationContext))
+        }
+        val card = ultraBatteryCard ?: return
+        if (c11SidebarEnabled()) { card.hide(); return }
+        val video = videoView
+        val parent = card.view.parent as? FrameLayout
+        val localReadings = hostAppearanceResumed && !isDestroyed && !shuttingDown.get() && session != null &&
+            com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(this)
+        val localOutputReady = if (referenceCenterHost != null) referenceOutputReady else activeScreenStreamTypes.isNotEmpty()
+        if (!localReadings || !localOutputReady || menuOpen || picturePanel != null || safeAreaEditorActive ||
+            video == null || parent == null || video.parent !== parent || !parent.isAttachedToWindow ||
+            video.width <= 0 || video.height <= 0) {
+            card.hide(); return
+        }
+        val insets = ViewCompat.getRootWindowInsets(parent)?.getInsets(
+            WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        if (insets == null) { card.hide(); return }
+        val content = contentRect(video.width, video.height)
+        val picture = RectF(video.left + content.left, video.top + content.top,
+            video.left + content.left + content.width, video.top + content.top + content.height)
+        val exclusions = mutableListOf<RectF>()
+        val parentOnScreen = IntArray(2).also(parent::getLocationOnScreen)
+        for (control in listOfNotNull(sidePanel, sidePanelTab, fpsCounter?.view)) {
+            if (control.visibility != View.VISIBLE || control.alpha <= 0f) continue
+            val bounds = android.graphics.Rect()
+            if (control.getGlobalVisibleRect(bounds)) exclusions += RectF(bounds).apply {
+                offset(-parentOnScreen[0].toFloat(), -parentOnScreen[1].toFloat())
+            }
+        }
+        // Map system bars from the decor into this parent; don't subtract insets a second time
+        // when Android already positioned the app below/above those bars.
+        val decor = window.decorView
+        val decorOnScreen = IntArray(2).also(decor::getLocationOnScreen)
+        val dx = (decorOnScreen[0] - parentOnScreen[0]).toFloat()
+        val dy = (decorOnScreen[1] - parentOnScreen[1]).toFloat()
+        fun exclude(left: Int, top: Int, right: Int, bottom: Int) {
+            if (right > left && bottom > top) exclusions += RectF(left.toFloat(), top.toFloat(),
+                right.toFloat(), bottom.toFloat()).apply { offset(dx, dy) }
+        }
+        exclude(0, 0, decor.width, insets.top)
+        exclude(0, decor.height - insets.bottom, decor.width, decor.height)
+        exclude(0, 0, insets.left, decor.height)
+        exclude(decor.width - insets.right, 0, decor.width, decor.height)
+        val exterior = com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.lastReportedExterior(applicationContext)
+        card.update(true, parent.width, parent.height, picture, exclusions,
+            com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.snapshot(applicationContext),
+            exterior?.celsius, exterior?.receivedAgeMillis)
+        if (card.view.visibility == View.VISIBLE && picture.top > 0f) {
+            ultraHeaderBackground?.setHeader(RectF(0f, 0f, parent.width.toFloat(), picture.top), exclusions)
+        }
+    }
+
+    private fun closeUltraParkedObservation() {
+        ultraParkedObservation?.close()
+        ultraParkedObservation = null
+        ultraParkedSession = null
+        lastUltraParkedDiagnostic = null
     }
 
     // The keywords are English; matching the English text keeps the result the same in every UI language.
@@ -6623,6 +7082,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val VEHICLE_READOUT_HEADER_DP = 48
         const val CLUSTER_SMALL_WINDOW_ON = 1
         const val CLUSTER_SMALL_WINDOW_AUTO = 2
         const val SIDE_PANEL_REFRESH_MILLIS = 5_000L

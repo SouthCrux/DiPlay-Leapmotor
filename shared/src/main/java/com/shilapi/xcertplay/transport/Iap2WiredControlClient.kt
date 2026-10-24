@@ -59,7 +59,7 @@ class Iap2WiredControlClient(
         val rxLog = Iap2RxLog()
         var carPlayStartSessions = 0
         val location = Iap2LocationReporter(locationProvider, onProgress)
-        val vehicleStatus = Iap2VehicleStatusReporter(vehicleStatusProvider, onProgress)
+        val vehicleStatus = Iap2VehicleStatusReporter(vehicleStatusProvider.takeIf { identified.vehicleStatusEnabled }, onProgress)
         try {
             while (true) {
                 val remaining = remainingMillis(deadlineNanos)
@@ -150,6 +150,10 @@ class Iap2WiredControlClient(
                 deviceIdentifier = endpoint.deviceIdentifier,
                 publicKey = endpoint.publicKey,
                 sourceVersion = endpoint.sourceVersion,
+                sdkVersion = endpoint.themeAsset?.sdkVersion,
+                clusterAsset = endpoint.themeAsset?.let {
+                    com.shilapi.xcertplay.iap2.message.Iap2ClusterAsset(it.identifier, it.version)
+                },
             )
 
         fun carPlayAvailabilitySummary(payload: ByteArray): String {
@@ -179,6 +183,7 @@ class Iap2WiredCarPlayEndpoint(
     val publicKey: String,
     val sourceVersion: String,
     val deviceIdentifier: String? = null,
+    val themeAsset: Iap2ThemeAsset? = null,
 ) {
     /** A stable copy so a caller cannot mutate a validated endpoint before it is encoded. */
     val ipv6Addresses: List<String> = ipv6Addresses.toList()

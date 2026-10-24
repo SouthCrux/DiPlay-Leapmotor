@@ -1,3 +1,22 @@
+# Leapmotor C11 preview — 0.2.20-c11.20261024.4 — 2026-10-24
+
+> [!WARNING]
+> **NO PROBADO CON ANDROID AUTO / NOT TESTED WITH ANDROID AUTO.**
+> No Android Auto compatibility or regression testing has been performed.
+
+- Save the accumulated C11 integration on a dedicated Leapmotor branch, based on upstream0.2.20.
+- Add Clara vehicle sidebar with OEM battery, range, exterior temperature, four tyre pressures/temperatures and trip consumption. Hide negative/unavailable trip consumption; preserve valid zero.
+- Add C11 cluster map/card layout and automatically remeasure the verified physical display after reboot.
+- Preserve native Bluetooth media-control ownership to avoid duplicate play/pause and provide the steering-wheel Siri trigger.
+- Add bounded read-only SomeIP/QNX readers and diagnostic tooling for ten vehicle subsystems; observation does not prove decoded semantics or control capability.
+- Add experimental Ultra protocol/rendering/runtime research and gated climate/radio backends. Native Siri battery/range queries and climate control are not validated features.
+- Add opt-in foreground/session hotspot recovery and timeout diagnostics; recurring wireless disconnections remain unresolved.
+- Separate C11 APK updates from incompatible official upstream update offers.
+- Preserve offline EV-assistant research and the shelved, uninstalled SiriKit companion probe as source-only research, not the supported native solution.
+- Bump the APK to versionCode44. The public source-preview APK omits authentication credentials and private Ultra runtime/resource inputs.
+
+See [full release notes, packaging requirements and known limitations](docs/RELEASE-NOTES-C11-20261024.md).
+
 # DiPlay 0.2.20 — 2026-10-15
 
 - Keep music playing when a head unit's audio clock drifts by adjusting its playback rate, run DiPlay's audio threads at audio priority, and keep separate music buffers for wireless and USB (#788, #740, #746).

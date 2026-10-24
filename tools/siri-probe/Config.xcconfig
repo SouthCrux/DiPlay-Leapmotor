@@ -1,0 +1,7 @@
+IPHONEOS_DEPLOYMENT_TARGET = 16.0
+SWIFT_VERSION = 5.0
+CODE_SIGN_STYLE = Automatic
+SIRI_PROBE_BUNDLE_PREFIX = com.southcrux.diplaysiriprobe
+SIRI_PROBE_APP_GROUP = group.com.southcrux.diplaysiriprobe
+// Local overrides: DEVELOPMENT_TEAM plus unique bundle prefix and App Group if needed.
+#include? "Signing.local.xcconfig"

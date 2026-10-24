@@ -690,6 +690,30 @@ class AdaptiveSettingsUiTest {
         assertTrue(texts(screen).any { it.text == screen.getString(R.string.picture_adjustments) })
     }
 
+    @Test fun revisitingCategoriesDoesNotAccumulateDuplicateControlsOrOverviewShortcuts() {
+        val screen = openSettings()
+        val expected = listOf(
+            R.string.connection to listOf(R.string.connect_when_diplay_opens, R.string.connect_when_iphone_bluetooth_connects,
+                R.string.settings_usb_charging),
+            R.string.settings_display to listOf(R.string.settings_app_appearance, R.string.carplay_night_mode,
+                R.string.frame_rate, R.string.carplay_dock),
+            R.string.settings_navigation to listOf(R.string.report_location_to_iphone),
+            R.string.settings_vehicle to listOf(R.string.right_hand_drive, R.string.settings_gesture_fingers_label),
+        )
+        repeat(2) {
+            for ((category, controls) in expected) {
+                descendants(screen.window.decorView).single { candidate -> candidate.contentDescription ==
+                    screen.getString(R.string.settings_open_category, screen.getString(category)) }.performClick()
+                for (resource in controls) {
+                    val title = screen.getString(resource)
+                    assertEquals("One control in its category after revisit: $title", 1,
+                        texts(screen).count { it.text == title || it.text.startsWith("$title · ") })
+                }
+                screen.onBackPressedDispatcher.onBackPressed()
+            }
+        }
+    }
+
     @Test fun settingsLiveWhereDriversLookForThem() {
         val screen = openSettings()
         fun visibleIn(category: Int): List<CharSequence> {

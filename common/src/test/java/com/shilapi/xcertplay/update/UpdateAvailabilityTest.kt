@@ -33,6 +33,21 @@ class UpdateAvailabilityTest {
         assertNull(UpdateAvailability.available(context, "0.2.15"))
     }
 
+    @Test fun c11BuildDoesNotOfferOrKeepAnIncompatibleOfficialApk() {
+        val info = context.packageManager.getPackageInfo(context.packageName,
+            android.content.pm.PackageManager.GET_META_DATA)
+        info.applicationInfo!!.metaData = android.os.Bundle().apply {
+            putString(com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.METADATA_KEY,
+                com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.LEAPMOTOR_C11)
+        }
+        org.robolectric.Shadows.shadowOf(context.packageManager).installPackage(info)
+        UpdateAvailability.save(context, release("v0.2.21"))
+        assertFalse(UpdateAvailability.upstreamUpdatesSupported(context))
+        assertFalse(UpdateAvailability.backgroundChecksEnabled(context))
+        assertNull(UpdateAvailability.available(context, "0.2.20-c11.20261023-hud-test"))
+        assertTrue(UpdateAvailability.report(context, 10_000L).contains("cachedRelease=none"))
+    }
+
     @Test fun backgroundChecksDefaultOnAndPersistTheChoice() {
         assertTrue(UpdateAvailability.backgroundChecksEnabled(context))
         UpdateAvailability.saveBackgroundChecksEnabled(context, false)

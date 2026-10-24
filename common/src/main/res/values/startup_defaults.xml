@@ -1,0 +1,4 @@
+<resources>
+    <!-- Ordinary builds retain the driver's existing Bluetooth startup choice. -->
+    <bool name="diplay_manual_bluetooth_startup">false</bool>
+</resources>

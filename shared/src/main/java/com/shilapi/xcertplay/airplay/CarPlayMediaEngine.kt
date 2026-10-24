@@ -13,6 +13,7 @@ import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Identity of one CarPlay audio stream: the stream type plus its CarPlay audio type. */
 data class AudioStreamId(val type: Int, val audioType: String)
@@ -47,12 +48,18 @@ interface MediaSink {
  * past it can still hand over one item; the successor's configuration and keyframe follow it. The iPhone
  * connects after SETUP returns the port, which is after the stream is registered as current.
  */
-internal fun currentScreenListener(type: Int, sink: MediaSink, isCurrent: () -> Boolean) = object : ScreenStream.Listener {
+internal fun currentScreenListener(type: Int, sink: MediaSink, isCurrent: () -> Boolean): ScreenStream.Listener =
+    currentScreenListener(type, sink, isCurrent, {})
+
+internal fun currentScreenListener(type: Int, sink: MediaSink, isCurrent: () -> Boolean,
+                                  onFirstFrame: () -> Unit) = object : ScreenStream.Listener {
+    private val firstFrame = AtomicBoolean()
+    private fun received() { if (firstFrame.compareAndSet(false, true)) onFirstFrame() }
     override fun onCodec(codec: VideoCodec) { if (isCurrent()) sink.onVideoCodec(type, codec) }
     override fun onConfig(codecData: ByteArray) { if (isCurrent()) sink.onVideoConfig(type, codecData) }
-    override fun onFrame(naluBytes: ByteArray) { if (isCurrent()) sink.onVideoFrame(type, naluBytes) }
+    override fun onFrame(naluBytes: ByteArray) { if (isCurrent()) { received(); sink.onVideoFrame(type, naluBytes) } }
     override fun onFrame(naluBytes: ByteArray, senderNanos: Long, arrivalNanos: Long) {
-        if (isCurrent()) sink.onVideoFrame(type, naluBytes, senderNanos, arrivalNanos)
+        if (isCurrent()) { received(); sink.onVideoFrame(type, naluBytes, senderNanos, arrivalNanos) }
     }
 }
 
@@ -60,7 +67,43 @@ class CarPlayMediaEngine(
     private val sink: MediaSink,
     private val microphoneEnabled: Boolean = false,
     private val audioCaptureDirectory: File? = null,
+    private val vehicleStateProvider: com.shilapi.xcertplay.transport.VehicleStatusProvider? = null,
+    private val climateBackend: UltraClimateBackend? = null,
+    private val climateSessionRegistry: UltraClimateSessionRegistry? = null,
 ) : AirPlayMediaHandler {
+    private val vehicleSource = vehicleStateProvider ?: com.shilapi.xcertplay.transport.VehicleStatusProvider { null }
+    override val vehicleStateAvailable: Boolean get() = runCatching {
+        VehicleStatePrototype(vehicleSource, climateBackend).isSourceAvailable()
+    }.getOrDefault(false)
+    override fun vehicleStateDescription(): Map<String, Any?>? = runCatching {
+        VehicleStatePrototype(vehicleSource, climateBackend).takeIf { it.isSourceAvailable() }?.infoPlist()
+    }.getOrNull()
+    private val climateLeases = ConcurrentHashMap<AirPlaySession, UltraClimateSessionRegistry.Lease>()
+
+    private fun climateFor(session: AirPlaySession): UltraClimateBackend? {
+        if (session.isClosed || !session.acceptsVehicleState) return null
+        climateBackend?.let { return it }
+        climateLeases[session]?.let { return it.backend }
+        val candidate = climateSessionRegistry?.acquire() ?: return null
+        if (session.isClosed || !session.acceptsVehicleState) { candidate.close(); return null }
+        val previous = climateLeases.putIfAbsent(session, candidate)
+        val selected = previous ?: candidate
+        if (previous != null) candidate.close()
+        if (session.isClosed || !session.acceptsVehicleState) {
+            if (climateLeases.remove(session, selected)) selected.close()
+            return null
+        }
+        return selected.backend
+    }
+
+    override fun vehicleStateAvailable(session: AirPlaySession): Boolean = runCatching {
+        VehicleStatePrototype(vehicleSource, climateFor(session)).isSourceAvailable()
+    }.getOrDefault(false)
+
+    override fun vehicleStateDescription(session: AirPlaySession): Map<String, Any?>? = runCatching {
+        VehicleStatePrototype(vehicleSource, climateFor(session)).takeIf { it.isSourceAvailable() }?.infoPlist()
+    }.getOrNull()
+    override val ultraHandshakeAvailable: Boolean get() = true
     internal data class StreamKey(
         val session: AirPlaySession,
         val type: Int,
@@ -90,6 +133,45 @@ class CarPlayMediaEngine(
     private val pendingIapTunnels = ConcurrentHashMap<AirPlaySession, PendingIapTunnel>()
     private val videoSettingsChannels = ConcurrentHashMap<AirPlaySession, VideoSettingsChannel>()
     private val bufferedStreams = ConcurrentHashMap<AirPlaySession, BufferedStream>()
+    private val vehicleStates = ConcurrentHashMap<AirPlaySession, VehicleStateRuntime>()
+    private val ultraHandshakes = ConcurrentHashMap<AirPlaySession, UltraHandshakeRuntime>()
+    // Development integration seam. The incomplete native bridge is never installed by normal app startup.
+    @Volatile internal var uiSyncPanelFactory: ((String) -> UiSyncPanelSession)? = null
+    // Explicit development opt-in; the Activity never installs an incomplete renderer by default.
+    @Volatile internal var ultraRendererFactory: ((AirPlaySession) -> UltraSessionRenderer)? = null
+    private val ultraRenderers = ConcurrentHashMap<AirPlaySession, UltraSessionRenderer>()
+    private var referenceCenterHost: UltraReferenceCenterHost? = null
+
+    /** Explicit development installer. Configure the connection with this host's exact binding first. */
+    @androidx.annotation.RequiresApi(26)
+    fun installReferenceCenterHost(host: UltraReferenceCenterHost) {
+        check(ultraRendererFactory == null && ultraRenderers.isEmpty())
+        referenceCenterHost = host
+        ultraRendererFactory = { session ->
+            if (!session.hasReferenceCenterBinding(host.themeBinding)) {
+                host.rejectBinding()
+                error("Reference center binding mismatch")
+            }
+            host.renderer(isConnectionOpen = { !session.isClosed }) {
+                // Never tear down a transport/panel while its worker still holds a transaction lock.
+                Thread({ session.closeFrom(AirPlayCloseSource.RENDERER_FAILED) }, "diplay-ultra-failed")
+                    .apply { isDaemon = true; start() }
+            }.also { session.logDebug("ultra renderer: reference center installed; phoneAcceptance=unverified") }
+        }
+    }
+
+    private fun ultraRenderer(session: AirPlaySession): UltraSessionRenderer? {
+        if (!session.ultraHandshakeNegotiated || session.isClosed) return null
+        val renderer = ultraRenderers[session] ?: run {
+            val factory = ultraRendererFactory ?: return null
+            ultraRenderers.computeIfAbsent(session, factory)
+        }
+        if (session.isClosed || !session.ultraHandshakeNegotiated) {
+            if (ultraRenderers.remove(session, renderer)) renderer.close()
+            return null
+        }
+        return renderer
+    }
     private val microphoneScheduler by lazy {
         ScheduledThreadPoolExecutor(1) { task -> Thread(task, "carplay-mic-start").apply { isDaemon = true } }.apply {
             removeOnCancelPolicy = true
@@ -118,14 +200,24 @@ class CarPlayMediaEngine(
             ?.let { bufferedTransition = null }
         return !session.isClosed && session !in retiredBufferedSessions && bufferedTransition == null
     }
-    @Volatile private var nextRemoteControlStreamId = FIRST_REMOTE_CONTROL_STREAM_ID
+    private val nextRemoteControlStreamId = java.util.concurrent.atomic.AtomicLong(FIRST_REMOTE_CONTROL_STREAM_ID)
     @Volatile private var iapTunnelHandler: ((BlockingDuplexByteStream) -> Boolean)? = null
 
     override fun setIapTunnelHandler(handler: ((BlockingDuplexByteStream) -> Boolean)?) {
         iapTunnelHandler = handler
     }
 
+    private val probeVideoSink = object : MediaSink {}
+    internal fun screenSink(session: AirPlaySession, type: Int): MediaSink =
+        if (type == STREAM_TYPE_MAIN_SCREEN) ultraRenderer(session)?.videoSink ?: sink
+        else if (session.suppressesConventionalCluster && type == STREAM_TYPE_ALT_SCREEN) probeVideoSink else sink
+
+    private fun existingScreenSink(session: AirPlaySession, type: Int): MediaSink =
+        if (type == STREAM_TYPE_MAIN_SCREEN) ultraRenderers[session]?.videoSink ?: sink
+        else if (session.suppressesConventionalCluster && type == STREAM_TYPE_ALT_SCREEN) probeVideoSink else sink
+
     override fun onScreen(session: AirPlaySession, type: Int, stream: Map<String, Any?>): Int? {
+        val sink = screenSink(session, type)
         val key = outputKey(session, stream) ?: return null
         val streamKey = StreamKey(session, type)
         Log.i(TAG, "airplay screen key connectionID=${unsignedPlistDecimal(stream["streamConnectionID"])}")
@@ -138,7 +230,7 @@ class CarPlayMediaEngine(
             if (streams[streamKey] === screen) {
                 // The cluster asks for a keyframe of its own screen; the plain command is the main screen's.
                 val command = if (type == STREAM_TYPE_ALT_SCREEN) {
-                    mapOf("type" to "forceKeyFrame", "params" to mapOf("uuid" to AirPlayInfoPlist.ALT_UUID))
+                    mapOf("type" to "forceKeyFrame", "params" to mapOf("uuid" to session.clusterDisplayUuid))
                 } else {
                     mapOf("type" to "forceKeyFrame")
                 }
@@ -147,7 +239,9 @@ class CarPlayMediaEngine(
             }
         }
         val port = screen.listen(
-            object : ScreenStream.Listener by currentScreenListener(type, sink, isCurrent = { streams[streamKey] === screen }) {
+            object : ScreenStream.Listener by currentScreenListener(type, sink,
+                isCurrent = { streams[streamKey] === screen },
+                onFirstFrame = { session.logDebug("airplay screen first frame received type=$type") }) {
                 override fun onClosed(cause: Throwable?) {
                     Log.w(
                         TAG,
@@ -155,8 +249,10 @@ class CarPlayMediaEngine(
                     )
                     if (streams.remove(streamKey, screen)) {
                         sink.onScreenStreamActive(type, false)
+                        // A retired receiver may already be dispatching its close callback.
+                        // Only the current stream can retire this AirPlay session.
+                        session.closeFrom(AirPlayCloseSource.SCREEN_CLOSED)
                     }
-                    session.close()
                 }
             },
         )
@@ -369,6 +465,38 @@ class CarPlayMediaEngine(
 
     override fun onDataStream(session: AirPlaySession, stream: Map<String, Any?>): Map<String, Any?>? {
         val uuid = (stream["clientTypeUUID"] as? String)?.uppercase() ?: return null
+        if (uuid == UltraHandshake.DATASTREAM_UUID) {
+            if (!session.ultraHandshakeNegotiated || !session.pairVerify.isVerified || session.isClosed) return null
+            val shared = session.sharedSecret ?: return null
+            val seed = unsignedPlistDecimal(stream["seed"]) ?: return null
+            val local = session.localAddress ?: return null
+            val peer = session.remoteAddress ?: return null
+            session.logDebug("ultra channel: UI Sync SETUP received")
+            val runtime = ultraHandshakes.computeIfAbsent(session) {
+                val renderer = ultraRenderer(session)
+                UltraHandshakeRuntime(shared, local, peer, session.handshakePanels(), session::logDebug,
+                    renderer?.let { owner -> { panel: String ->
+                        owner.panel(panel).also { session.logDebug("ultra channel: protocol owner attached") }
+                    } } ?: uiSyncPanelFactory)
+            }
+            val bound = runtime.setup(nextRemoteControlStreamId.getAndIncrement(), seed) ?: return null
+            if (session.isClosed) { ultraHandshakes.remove(session)?.close(); return null }
+            return linkedMapOf("type" to STREAM_TYPE_DATA, "streamID" to bound.streamId, "dataPort" to bound.port)
+        }
+        if (VehicleStatePrototype.Lane.entries.any { it.uuid == uuid }) {
+            if (!session.vehicleStateNegotiated || !session.pairVerify.isVerified || session.isClosed) return null
+            if (!vehicleStateAvailable(session)) return null
+            val shared = session.sharedSecret ?: return null
+            val seed = unsignedPlistDecimal(stream["seed"]) ?: return null
+            val local = session.localAddress ?: return null
+            val peer = session.remoteAddress ?: return null
+            val runtime = vehicleStates.computeIfAbsent(session) {
+                VehicleStateRuntime(shared, vehicleSource, local, peer, session::logDebug, climateFor(session))
+            }
+            val bound = runtime.setup(uuid, nextRemoteControlStreamId.getAndIncrement(), seed) ?: return null
+            if (session.isClosed) { vehicleStates.remove(session)?.close(); return null }
+            return linkedMapOf("type" to STREAM_TYPE_DATA, "streamID" to bound.streamId, "dataPort" to bound.port)
+        }
         if (session.videoInCar) videoDataStream(session, uuid, stream)?.let { return it }
         if (uuid != IAP_DATASTREAM_UUID) return null
         val shared = session.sharedSecret ?: return null
@@ -437,7 +565,7 @@ class CarPlayMediaEngine(
      */
     private fun videoDataStream(session: AirPlaySession, uuid: String, stream: Map<String, Any?>): Map<String, Any?>? {
         if (uuid in VideoInCar.REMOTE_CONTROL_UUIDS && (stream["controlType"] as? Number)?.toInt() == 1) {
-            val streamId = nextRemoteControlStreamId++
+            val streamId = nextRemoteControlStreamId.getAndIncrement()
             session.logTrace("video remote-control stream accepted uuid=$uuid streamID=$streamId")
             return linkedMapOf("type" to STREAM_TYPE_DATA, "streamID" to streamId)
         }
@@ -475,7 +603,7 @@ class CarPlayMediaEngine(
     }
 
     override fun onFeedback(session: AirPlaySession): Map<String, Any?>? {
-        val active = audioMeta.values.toList()
+        val active = audioMeta.entries.filter { it.key.session === session }.map { it.value }
         val buffered = bufferedStreams[session]
         if (active.isEmpty() && buffered == null) return null
         val streams = active.map { meta ->
@@ -528,10 +656,13 @@ class CarPlayMediaEngine(
             if (key.type != BufferedAudioStream.STREAM_TYPE) sink.onAudioStopped(streamId)
             streams.remove(key)?.close()
         }
-        if (isScreenStreamType(type)) sink.onScreenStreamActive(type, false)
+        if (isScreenStreamType(type)) existingScreenSink(session, type).onScreenStreamActive(type, false)
     }
 
     override fun onSessionClosed(session: AirPlaySession) {
+        ultraHandshakes.remove(session)?.close()
+        vehicleStates.remove(session)?.close()
+        climateLeases.remove(session)?.close()
         clearPendingIapTunnel(session)
         retireBuffered(session)
         videoSettingsChannels.remove(session)?.close()
@@ -540,12 +671,40 @@ class CarPlayMediaEngine(
         }
         sessionStreams
             .filter { isScreenStreamType(it.type) }
-            .forEach { sink.onScreenStreamActive(it.type, false) }
+            .forEach { existingScreenSink(session, it.type).onScreenStreamActive(it.type, false) }
         sessionStreams.forEach { streams.remove(it)?.close() }
-        audioMeta.clear()
-        pendingMicrophone.clear()
-        audioCaptures.values.forEach(AudioPacketCapture::close)
-        audioCaptures.clear()
+        ultraRenderers.remove(session)?.close()
+        audioMeta.keys.filter { it.session === session }.forEach { audioMeta.remove(it) }
+        pendingMicrophone.keys.filter { it.session === session }.forEach { pendingMicrophone.remove(it) }
+        audioCaptures.entries.filter { it.key.session === session }.forEach { (key, capture) ->
+            if (audioCaptures.remove(key, capture)) capture.close()
+        }
+    }
+
+    override fun onDataStreamTeardown(session: AirPlaySession, streamId: Long?) {
+        if (streamId == null) ultraHandshakes.remove(session)?.close()
+        else if (streamId != 1L) ultraHandshakes[session]?.teardown(streamId)
+        if (streamId == null) vehicleStates.remove(session)?.close()
+        else if (streamId != 1L) vehicleStates[session]?.teardown(streamId)
+    }
+
+    override fun onVehicleStateNegotiated(session: AirPlaySession, enabled: Boolean) {
+        if (!enabled) {
+            vehicleStates.remove(session)?.close()
+            climateLeases.remove(session)?.close()
+        }
+    }
+
+    override fun onUltraHandshakeNegotiated(session: AirPlaySession, enabled: Boolean) {
+        session.logDebug("ultra handshake: UI Sync negotiated=$enabled; vehicleStateNegotiated=${session.vehicleStateNegotiated} renderer=false")
+        if (!enabled) {
+            ultraHandshakes.remove(session)?.close()
+            ultraRenderers.remove(session)?.close()
+            if (android.os.Build.VERSION.SDK_INT >= 26) referenceCenterHost?.let {
+                it.rejectNegotiation()
+                session.close()
+            }
+        }
     }
 
     /** Removes ownership before a close that may block on delivery or invoke the sink. */

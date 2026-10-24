@@ -1,6 +1,12 @@
 plugins {
     id 'com.android.library'
 }
+def ultraNativeDirectory = providers.gradleProperty('ultraNativeDirectory').orNull
+def ultraDevelopmentAssetsProperty = providers.gradleProperty('ultraDevelopmentAssetsDirectory').orNull
+def ultraDevelopmentAssetsDirectory = ultraDevelopmentAssetsProperty == null ? null : file(ultraDevelopmentAssetsProperty).canonicalFile
+if (ultraDevelopmentAssetsDirectory != null && ultraNativeDirectory == null) {
+    throw new GradleException('ultraDevelopmentAssetsDirectory requires an explicit ultraNativeDirectory')
+}
 android {
     namespace = 'com.shilapi.xcertplay.shared'
     compileSdk = 37
@@ -32,6 +38,16 @@ android {
         // Geely/Lynk head-unit input API (com.geely.inputservice); declarations in src/main/aidl.
         aidl true
     }
+    // Explicit local debug input, containing <abi>/libdiplay_ultra.so built by build_host.py --jni.
+    // Neither Apple resources nor prebuilt native binaries are checked into the project.
+    if (ultraNativeDirectory != null) {
+        sourceSets.debug.jniLibs.srcDir(file(ultraNativeDirectory))
+        sourceSets.debug.assets.srcDir(rootProject.file('docs/licenses'))
+    }
+    // Reference resources are local, app-controlled development inputs, never default/release assets.
+    if (ultraDevelopmentAssetsDirectory != null) {
+        sourceSets.debug.assets.srcDir(ultraDevelopmentAssetsDirectory)
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -43,4 +59,31 @@ dependencies {
     implementation libs.jmdns
     testImplementation libs.junit
     testImplementation 'org.robolectric:robolectric:4.17'
+}
+
+if (ultraDevelopmentAssetsDirectory != null) {
+    def verifier = rootProject.file('tools/carplay/runtime/stage_android_assets.py')
+    def verifyAssets = tasks.register('verifyUltraDevelopmentAssets', Exec) {
+        inputs.files(fileTree(ultraDevelopmentAssetsDirectory))
+            .withPropertyName('ultraDevelopmentAssets').withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.files(verifier, rootProject.file('tools/carplay/runtime/bridge.luau'),
+            rootProject.file('tools/carplay/runtime/center_wallpaper_entry.luau'))
+            .withPropertyName('ultraDevelopmentAssetVerifier').withPathSensitivity(PathSensitivity.RELATIVE)
+        commandLine 'python3', verifier.absolutePath, 'verify', '--directory', ultraDevelopmentAssetsDirectory.absolutePath
+    }
+    tasks.matching { it.name in ['mergeDebugAssets', 'packageDebugAssets', 'processDebugAssets'] }.configureEach {
+        dependsOn verifyAssets
+    }
+}
+
+// Native integration tests use explicit local inputs. Track their contents so edits to the bridge
+// or a rebuilt JNI library cannot incorrectly reuse a successful cached JUnit result.
+tasks.withType(Test).configureEach {
+    ['DIPLAY_ULTRA_JNI_LIBRARY', 'DIPLAY_ULTRA_BRIDGE_SOURCE', 'DIPLAY_ULTRA_ENTRY_SOURCE',
+     'DIPLAY_ULTRA_TEST_RESOURCES', 'DIPLAY_ULTRA_PACKAGED_ASSETS'].each { name ->
+        def input = providers.environmentVariable(name).orNull
+        if (input != null) {
+            inputs.files(file(input)).withPropertyName(name).withPathSensitivity(PathSensitivity.RELATIVE)
+        }
+    }
 }

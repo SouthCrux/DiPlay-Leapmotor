@@ -879,4 +879,17 @@
     <string name="black_corner_overlay_off">Выкл.</string>
     <string name="black_corner_overlay_value">%1$d dp</string>
     <string name="iphone_corner_mask_mode">Маска iPhone (экспериментально)</string>
+    <string name="settings_c11_assistant">Ассистент на руле (экспериментально)</string>
+    <string name="settings_c11_assistant_description">Настройте физическую голосовую кнопку C11, пока виден CarPlay. Изменения применятся при возврате в CarPlay.</string>
+    <string name="settings_assistant_single">Одно нажатие</string>
+    <string name="settings_assistant_double">Двойное нажатие</string>
+    <string name="settings_assistant_default">Ассистент по умолчанию</string>
+    <string name="settings_assistant_none">Без действия</string>
+    <string name="settings_assistant_launch_limit">Ассистент по умолчанию — Siri на подключённом iPhone. Запуск ChatGPT, Gemini или Claude экспериментальный: приложение должно быть установлено, но запуск может не включить голосовой режим или отображение в CarPlay.</string>
+    <string name="settings_assistant_chatgpt">ChatGPT</string>
+    <string name="settings_assistant_gemini">Gemini</string>
+    <string name="settings_assistant_claude">Claude</string>
+    <string name="settings_c11_ultra_title">Прототип CarPlay Ultra (экспериментально)</string>
+    <string name="settings_c11_ultra_switch">Проверить согласование Ultra</string>
+    <string name="settings_c11_ultra_description">Проверяет согласование сеанса Ultra с iPhone с помощью эталонного пакета ресурсов Apple. Полный интерфейс Ultra пока недоступен. Применяется при переподключении CarPlay.</string>
 </resources>

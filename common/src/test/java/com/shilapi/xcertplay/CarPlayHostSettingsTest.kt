@@ -79,6 +79,44 @@ class CarPlayHostSettingsTest {
         controllers.close()
     }
 
+    @Test
+    @Config(sdk = [32])
+    fun reopeningAndResizingMenusNeverMountsDuplicateCategoryOrSettingControls() {
+        val categories = listOf(R.string.connection, R.string.settings_display, R.string.settings_navigation,
+            R.string.settings_vehicle, R.string.diagnostics, R.string.settings_advanced, R.string.settings_more)
+        var previous: View? = null
+        repeat(3) {
+            invoke("openSettingsMenu")
+            val current = menu()
+            previous?.let { assertNull("Reopening must detach the entire previous menu", it.parent) }
+            for (width in listOf(600, 1920, 600)) {
+                repeat(2) {
+                    current.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+                    current.layout(0, 0, width, 1080)
+                }
+                for (title in categories) {
+                    val buttons = views(current).filterIsInstance<Button>().filter {
+                        it.text == activity.getString(title)
+                    }.toList()
+                    assertEquals("One attached category destination at width=$width: ${activity.getString(title)}", 1, buttons.size)
+                    buttons.single().performClick()
+                    val scroll = field("settingsMenuContentScroll") as ScrollView
+                    val pages = scroll.getChildAt(0) as ViewGroup
+                    assertEquals(1, (0 until pages.childCount).count { pages.getChildAt(it).visibility == View.VISIBLE })
+                }
+                for (title in listOf(R.string.wireless_carplay_2, R.string.report_location_to_iphone,
+                    R.string.frame_rate, R.string.physical_length, R.string.driving_side,
+                    R.string.temporary_system_bars, R.string.debug_logs)) {
+                    assertEquals("One control builder per menu: ${activity.getString(title)}", 1,
+                        views(current).filterIsInstance<TextView>().count { it.text == activity.getString(title) })
+                }
+            }
+            previous = current
+            invoke("cancelSettingsEdits")
+        }
+    }
+
     @Test fun disabledGesturePersistsAndDoesNotOpenTheMenu() {
         AirPlayPersistence.saveSettingsGestureFingers(activity, 0)
         invoke("loadPersistedSettings")

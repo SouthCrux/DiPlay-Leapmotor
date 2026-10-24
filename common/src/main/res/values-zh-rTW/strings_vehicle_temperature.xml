@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vehicle_field_exterior_reported">車外（車輛回報）</string>
+    <string name="vehicle_reading_received_minutes">%1$s 分鐘前收到</string>
+    <string name="vehicle_field_outside_short">車外</string>
+    <string name="c11_sidebar_battery">電池</string>
+    <string name="c11_sidebar_tyres">輪胎</string>
+    <string name="c11_sidebar_no_data">暫無資料</string>
+    <string name="c11_sidebar_range_km">%1$s km</string>
+    <string name="c11_sidebar_range_description">預估續航：%1$s</string>
+    <string name="c11_sidebar_tyres_front">前輪 (kPa)</string>
+    <string name="c11_sidebar_tyres_rear">後輪 (kPa)</string>
+    <string name="c11_sidebar_tyres_description">左前：%1$s kPa；右前：%2$s kPa；左後：%3$s kPa；右後：%4$s kPa</string>
+    <string name="c11_sidebar_tyre_temperatures_description">輪胎溫度：左前 %1$s °C；右前 %2$s °C；左後 %3$s °C；右後 %4$s °C</string>
+    <string name="settings_c11_update_channel">C11 開發版本。更新透過 C11 專用 APK 提供；DiPlay 官方 APK 不包含此整合功能。</string>
+    <string name="c11_sidebar_trip_consumption">行程能耗\n%1$s kWh/100 km</string>
+</resources>

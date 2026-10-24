@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.update
 
 import android.content.Context
+import com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy
 
 /** Durable metadata only. APK downloads always remain an explicit foreground action. */
 internal object UpdateAvailability {
@@ -21,7 +22,10 @@ internal object UpdateAvailability {
     private fun preferences(context: Context) =
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
-    fun backgroundChecksEnabled(context: Context): Boolean =
+    /** Official APKs do not carry this fork's C11 integration or its separate test package. */
+    fun upstreamUpdatesSupported(context: Context): Boolean = !VehicleIntegrationPolicy.isLeapmotorC11(context)
+
+    fun backgroundChecksEnabled(context: Context): Boolean = upstreamUpdatesSupported(context) &&
         preferences(context).getBoolean(BACKGROUND_CHECKS, true)
 
     fun saveBackgroundChecksEnabled(context: Context, enabled: Boolean) {
@@ -29,6 +33,7 @@ internal object UpdateAvailability {
     }
 
     fun available(context: Context, installedVersion: String): UpdateRelease? {
+        if (!upstreamUpdatesSupported(context)) { clear(context); return null }
         val values = preferences(context)
         val release = UpdateRelease(
             tagName = values.getString(TAG, null) ?: return null,

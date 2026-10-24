@@ -5,6 +5,9 @@ import java.io.Closeable
 
 /** iOS 27 video in car, played by the host in the car's own player (see [VideoInCar]). */
 interface CarPlayVideoListener {
+    /** A newly active AirPlay session, ordered before its playback callbacks. */
+    fun onVideoSessionStarted() {}
+
     /** Whether the car is in P, or null when it cannot tell. Blocking; read once a second while CarPlay runs. */
     fun readParked(): Boolean?
 
@@ -29,15 +32,17 @@ internal class VideoInCarGate(
     private val readParked: () -> Boolean?,
     private val onChanged: (Boolean) -> Unit,
     private val onObserved: (Boolean?) -> Unit = {},
+    private val dispatchLock: Any = Any(),
 ) : Closeable {
     @Volatile private var closed = false
     private var observed = false
     private var lastParked: Boolean? = null
+    private var epoch = 0L
 
     fun start() {
         Thread({
             while (!closed) {
-                update(runCatching(readParked).getOrNull())
+                pollOnce()
                 try {
                     Thread.sleep(POLL_MILLIS)
                 } catch (_: InterruptedException) {
@@ -47,19 +52,48 @@ internal class VideoInCarGate(
         }, "diplay-video-gate").apply { isDaemon = true }.start()
     }
 
-    internal fun update(parked: Boolean?) {
-        if (!observed || parked != lastParked) {
-            observed = true
-            lastParked = parked
-            onObserved(parked)
+    /** Platform/cache reads never hold the lifecycle lock. Reset invalidates their eventual result. */
+    internal fun pollOnce() {
+        val generation = synchronized(dispatchLock) {
+            if (closed) return
+            epoch
         }
-        val allowed = parked == true
-        if (allowed == VideoInCar.allowed || closed) return
-        VideoInCar.allowed = allowed
-        onChanged(allowed)
+        publish(runCatching(readParked).getOrNull(), generation)
     }
 
-    override fun close() {
+    internal fun update(parked: Boolean?) = publish(parked, synchronized(dispatchLock) { epoch })
+
+    private fun publish(parked: Boolean?, generation: Long) {
+        synchronized(dispatchLock) {
+            if (closed || epoch != generation) return
+            if (!observed || parked != lastParked) {
+                observed = true
+                lastParked = parked
+                onObserved(parked)
+            }
+            if (closed || epoch != generation) return
+            val allowed = parked == true
+            if (allowed == VideoInCar.allowed) return
+            VideoInCar.allowed = allowed
+            onChanged(allowed)
+        }
+    }
+
+    /** Synchronous withdrawal at a session boundary; callbacks share the controller's ordering lock. */
+    fun invalidate() {
+        synchronized(dispatchLock) {
+            if (closed) return
+            epoch++
+            observed = false
+            lastParked = null
+            val changed = VideoInCar.allowed
+            VideoInCar.allowed = false
+            if (changed) onChanged(false)
+        }
+    }
+
+    override fun close() = synchronized(dispatchLock) {
+        epoch++
         closed = true
         VideoInCar.allowed = false
     }

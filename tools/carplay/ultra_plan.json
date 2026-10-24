@@ -1,0 +1,1213 @@
+{
+  "date": "2026-10-21",
+  "objective": "Integración CarPlay Ultra en Leapmotor C11: interfaz adaptada al coche, climatización mediante Siri con confirmación real, batería real y navegación del iPhone en el tablero; pantallas adicionales según contratos implementados. La pantalla del acompañante debe tener un papel independiente de entretenimiento y vídeo. Incorporar temperaturas reales exterior/interior y control autorizado del parasol del techo, separado del vidrio. Conservar instrumentos OEM y utilizar la zona verificada del mapa del cuadro como pantalla contextual: ruta, batería y otras tarjetas; secuencia inicial de mantenimiento sólo con datos fiables.",
+  "firstMilestone": "Una función útil integrada de extremo a extremo y validada en coche/iPhone (prioridad navegación en tablero y temperatura con Siri), conservando batería real y una interfaz utilizable.",
+  "currentStage": "Instalada estabilidad14450bee desde cero, cerrada, validación física pendiente. En desarrollo: panel Vehículo enlazado a fuente SETTINGS real y toques ligados a Canvas/token/epoch; CI completo PASS (3599 JUnit, 0 fallos/errores, 1 omitidos; 126 Python), APK bc964a64 archivada sin instalar. TPMS: puente Java sin conversiones demostrado, unidades aún pendientes. HVAC: recirculación raw/auto diferenciada, sin nuevo backend autorizado.",
+  "constraints": [
+    "Root posee exclusivamente la conexión al coche para diagnóstico/pruebas autorizadas. Los subagentes trabajan en local sin ADB; coordinar uso de coche y SystemUpdate antes de otras pruebas.",
+    "Conservar el estilo, escala y barras de la rama oficial en el uso normal.",
+    "No acceder a archivos personales ni contraseñas.",
+    "No confundir una prueba simulada, un ACK de recepción o un cuadro liberado por el decoder con Ultra presentado en pantalla.",
+    "Prioridad del usuario: integración funcional del coche, Siri/clima, batería y navegación en tablero. No bloquear estas dependencias esperando perfección gráfica del centro; no inventar señales, permisos ni confirmaciones.",
+    "ChatGPT/EV conserva prioridad relativa baja, pero el usuario pidió reanudar su integración paralela a la variante visual. No sustituir dependencias funcionales del coche por trabajo del asistente.",
+    "Instalada candidata estabilidad 14450bee desde cero, app cerrada; no restaurar ajustes antiguos sin instrucción. Recuperación física pendiente."
+  ],
+  "states": {
+    "real": "Comprobado con el coche/iPhone antes del reinicio",
+    "lab": "Comprobado en investigación o pruebas locales",
+    "partial": "Implementación parcial",
+    "pending": "Pendiente de integración o validación",
+    "unknown": "Contrato o viabilidad por resolver",
+    "deferred": "Después del primer hito"
+  },
+  "groups": [
+    {
+      "id": "link",
+      "title": "Enlace y negociación",
+      "state": "partial",
+      "tasks": [
+        "baseline",
+        "reset",
+        "live_request",
+        "channel_opening"
+      ]
+    },
+    {
+      "id": "resources",
+      "title": "Paquete y layout mínimo",
+      "state": "unknown",
+      "tasks": [
+        "sources",
+        "acceptance",
+        "geometry",
+        "minimal_layout",
+        "resource_loading",
+        "resource_delivery"
+      ]
+    },
+    {
+      "id": "runtime",
+      "title": "Scripts dentro de DiPlay",
+      "state": "partial",
+      "tasks": [
+        "persistent",
+        "cp_subset",
+        "android_binding",
+        "session_owner",
+        "lifecycle",
+        "runtime_lifetime",
+        "scene_input",
+        "scene_mapping",
+        "activity_install"
+      ]
+    },
+    {
+      "id": "composition",
+      "title": "Video y composición sincronizada",
+      "state": "partial",
+      "tasks": [
+        "drawing",
+        "origin_time",
+        "video_texture",
+        "frame_clock",
+        "apply_transition",
+        "presentation_performance",
+        "contextual_cockpit",
+        "maintenance_cards"
+      ]
+    },
+    {
+      "id": "visible",
+      "title": "Primera escena Ultra real",
+      "state": "pending",
+      "tasks": [
+        "first_scene",
+        "reconnect"
+      ]
+    },
+    {
+      "id": "vehicle",
+      "title": "Datos y pantallas adicionales",
+      "state": "partial",
+      "tasks": [
+        "vehicle_data",
+        "extra_screens",
+        "climate_protocol",
+        "climate_oem",
+        "battery_widget",
+        "widget_layout",
+        "passenger_entertainment",
+        "passenger_parked",
+        "wheels_telemetry",
+        "radio_protocol",
+        "ambient_temperatures",
+        "roof_sunshade",
+        "ev_assistant",
+        "cluster_map_picture",
+        "vehicle_settings"
+      ]
+    }
+  ],
+  "tasks": {
+    "baseline": {
+      "title": "CarPlay convencional y tamaño original",
+      "state": "real",
+      "dependsOn": [],
+      "evidence": "El 2026-10-19 se actualizó la APK preservando datos: MfiReady y WirelessActive con iPhone real, 2560×1176, prueba Ultra desactivada y UI Sync no negociado en esta conexión. El fallo de retorno desde la cámara fue reportado y aún no está diagnosticado.",
+      "exit": "Mantener ese comportamiento como base recuperable durante todas las pruebas.",
+      "source": "docs/LEAPMOTOR_C11_ULTRA_STATUS.md"
+    },
+    "reset": {
+      "title": "Canal UI Sync y reinicio con el iPhone",
+      "state": "real",
+      "dependsOn": [
+        "baseline"
+      ],
+      "evidence": "Con center-plugin el iPhone real abrió SETUP UI Sync, adjuntó propietario y completó reset. Ya no es solo un anuncio de capacidad.",
+      "exit": "No contar este intercambio como activación visual de Ultra.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraHandshake.kt"
+    },
+    "live_request": {
+      "title": "Solicitud real de layout y respuesta del iPhone",
+      "state": "partial",
+      "dependsOn": [
+        "reset",
+        "acceptance",
+        "minimal_layout",
+        "session_owner",
+        "apply_transition",
+        "channel_opening"
+      ],
+      "evidence": "Comando 5 real enviado con layout, respuesta comando 6 con layoutID coincidente a las 14:04:21.410. No demuestra provisión, interfaz completa ni aplicación visual correcta.",
+      "exit": "Enviar la solicitud desde el runtime integrado y registrar la respuesta auténtica y su aplicación, con límites del layout elegido.",
+      "source": "tools/carplay/runtime/protocol_probe.luau"
+    },
+    "sources": {
+      "title": "Recursos de referencia inspeccionados",
+      "state": "lab",
+      "dependsOn": [],
+      "evidence": "193 fuentes originales compilan; el programa central ejecuta 172 módulos. El paquete no es específico de Leapmotor.",
+      "exit": "Conservar procedencia y límites de investigación; no presentar el hash como aceptación del iPhone.",
+      "source": "tools/carplay/runtime/prepare_resources.py"
+    },
+    "acceptance": {
+      "title": "Aceptación y provisión del paquete",
+      "state": "unknown",
+      "dependsOn": [
+        "sources"
+      ],
+      "evidence": "Consulta nueva al catálogo público con perfil genérico sigue listando 44C9FA31EC/985. Single/547 también declara centro y cuadro. Trazas distinguen declaración, UI Sync y layout recibido/coincidencia sin inferir aceptación. Firma/provisión y aceptación del iPhone siguen sin verificar.",
+      "exit": "Identificar evidencia de aceptación para el paquete seleccionado y si la sesión usa caché/provisión o exige transferencia. Implementar transferencia solo si ese camino la requiere.",
+      "source": "docs/ULTRA_RESOURCE_NEGOTIATION.md"
+    },
+    "geometry": {
+      "title": "Roles, tamaños y rutas de las pantallas",
+      "state": "partial",
+      "dependsOn": [
+        "sources"
+      ],
+      "evidence": "Principal física2560×1440, acompañante1920×720/display3, cuadro1920×720/display2; HDMI1920×1080/display4. Recurso central1920×720. Detectadas áreas ordinarias heredadas que encogían el centro: corrección local probada, validación física pendiente.",
+      "exit": "Definir la geometría del primer layout y su pantalla de destino sin reducir la interfaz habitual ni inventar roles.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraThemeBinding.kt"
+    },
+    "minimal_layout": {
+      "title": "Elegir una escena viable y su contrato mínimo",
+      "state": "partial",
+      "dependsOn": [
+        "sources",
+        "geometry"
+      ],
+      "evidence": "Wallpaper central abre canal y recibe respuesta de layout real. Este recurso solo contiene Wallpaper/Overlay en el centro y no implementa widgets nuevos ni multipantalla. Revisar la elección para el hito visual tras corregir presentación y rendimiento.",
+      "exit": "Una matriz por layout debe listar operaciones CP, video, zonas, capacidades, estados e indicadores obligatorios. Si el paquete no encaja, revisar esta elección antes de ampliar el port.",
+      "source": "docs/ULTRA_MINIMUM_CENTER_CONTRACT.md"
+    },
+    "persistent": {
+      "title": "VM persistente y mensajes binarios",
+      "state": "lab",
+      "dependsOn": [],
+      "evidence": "Una VM conserva el programa original entre mensajes; bplist e IPC acotados pasaron en Mac y, antes de la pausa, fuera de pantalla en el SOC.",
+      "exit": "Su funcionamiento aislado no equivale a estar integrado en la APK.",
+      "source": "tools/carplay/runtime/step_stream.hpp"
+    },
+    "cp_subset": {
+      "title": "Operaciones CP exigidas por esa escena",
+      "state": "partial",
+      "dependsOn": [
+        "minimal_layout",
+        "persistent"
+      ],
+      "evidence": "Capas, imágenes, trazados, gradientes y tareas parciales. Máscaras, filtros, decoración, video y elementos verificados siguen incompletos; se usa un override de versión solo en investigación.",
+      "exit": "Completar y comprobar el subconjunto exigido por el layout. Rechazar las operaciones no soportadas; no exigir toda la API para una primera escena acotada.",
+      "source": "tools/carplay/runtime/bridge.luau"
+    },
+    "android_binding": {
+      "title": "Integración persistente en la aplicación Android",
+      "state": "partial",
+      "dependsOn": [
+        "persistent",
+        "resource_loading",
+        "resource_delivery"
+      ],
+      "evidence": "JNI/pipeline/instalador por conexión ligados a selección verificada. Build de desarrollo explícito + opt-in C11 prepara off UI e instala fábrica/Activity, adjuntos reemplazables y fallback completo. Prueba Android offscreen desde APK verifica controlador original, píxeles generados, adopción y retiro de recursos. Faltan iPhone real, salida física y rendimiento sostenido.",
+      "exit": "Definir e implementar ejecución/empaquetado, hilo propietario, recursos, límites, errores y cierre al reemplazar una sesión, sin depender de una consola ADB.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraNativeRuntime.kt"
+    },
+    "session_owner": {
+      "title": "Un solo propietario del protocolo por panel",
+      "state": "lab",
+      "dependsOn": [
+        "android_binding",
+        "reset"
+      ],
+      "evidence": "Protocolo y composición comparten propietario. La fábrica opcional del motor está ligada a una conexión AirPlay; cierre y desactivación retiran su renderer. JNI verifica mensaje temporizado y reemplazo de reloj; la fixture Android verifica retiro conjunto de decoder, worker, panel y entrada GL.  La ruta de desarrollo explícita ya instala ese contrato desde Activity; ver activity_install para límites de validación.",
+      "exit": "El adaptador autentica y enruta OPACK; una sola implementación posee reset, secuencias y ACK del panel. No ejecutar ambos propietarios a la vez.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraComposedPanelSession.kt"
+    },
+    "lifecycle": {
+      "title": "Capacidades y ciclo de interfaz mínimos",
+      "state": "partial",
+      "dependsOn": [
+        "minimal_layout",
+        "android_binding",
+        "scene_input",
+        "scene_mapping"
+      ],
+      "evidence": "Visibilidad y escena aplicadas atómicamente por el propietario. Política central solicita ACCESSORY como UI local explícita, sin inferir modo físico del vehículo. Activity suministra resume y superficie mediante adjuntos reemplazables; suspensión, descarte de cuadros y adopción probados en JNI/Android offscreen. Aceptación, respuesta de foco/layout del iPhone y retorno de foco tras cámara siguen sin validar.",
+      "exit": "Definir los estados/capacidades obligatorios y cómo expresar datos ausentes. No simular velocidad, batería o controles del coche en una sesión real.",
+      "source": "tools/carplay/runtime/entrypoint_probe.luau"
+    },
+    "drawing": {
+      "title": "Dibujo de las capas locales",
+      "state": "partial",
+      "dependsOn": [
+        "cp_subset"
+      ],
+      "evidence": "El compositor Android procesa la escena del controlador original Wallpaper con AVC generado a 1920×720 y verifica los cuatro cuadrantes. No se editaron los 193 módulos originales. No demuestra otros layouts, máscaras complejas ni vídeo de un iPhone real.",
+      "exit": "Dibujar la escena seleccionada completa, incluidas sus operaciones requeridas, dentro de la composición real.",
+      "source": "common/src/main/java/com/shilapi/xcertplay/ultra/UltraSceneRenderer.kt"
+    },
+    "origin_time": {
+      "title": "Conservar el reloj original del video",
+      "state": "lab",
+      "dependsOn": [],
+      "evidence": "El origen del cuadro se conserva por decoder y GL hasta la transacción del runtime y el compositor; se verificó con AVC generado en Android. Liberar un cuadro no confirma presentación física. Reloj y metadatos del iPhone real siguen pendientes.",
+      "exit": "Usar ese origen junto con la propiedad real del cuadro y del panel, sin deducir presentación de un callback de liberación.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/media/VideoFrameOrigin.kt"
+    },
+    "video_texture": {
+      "title": "Video del iPhone disponible para componer",
+      "state": "partial",
+      "dependsOn": [
+        "android_binding",
+        "origin_time",
+        "geometry"
+      ],
+      "evidence": "Vídeo del iPhone real llegó al compositor y se registró envío Canvas; usuario vio CarPlay habitual con lentitud. Lectura RGBA optimizada y píxeles/orientación verificados en Android local; mejora física pendiente.",
+      "exit": "Vincular cuadros/textura, su panel y su vida útil al compositor. Resolver pérdida de superficie y reconexión sin usar cuadros viejos.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraVideoPipeline.kt"
+    },
+    "frame_clock": {
+      "title": "Reloj compartido y cola de transiciones",
+      "state": "partial",
+      "dependsOn": [
+        "video_texture",
+        "origin_time",
+        "lifecycle"
+      ],
+      "evidence": "CP.PTS puede seguir el origen de los cuadros ofrecidos y mantenerse entre polls. Hay transacción nativa de oferta, diferimiento, flush y commit. Pruebas rechazan cuadros viejos y verifican leases. Falta validar ventanas de metadatos y presentación con el iPhone real; la política de duración ligada a sesión ya está probada aparte.",
+      "exit": "Relacionar PTS de video y metadatos, aplicar el estado en el cuadro correcto y manejar datos tardíos, reset y cambio de sesión.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraFrameCoordinator.kt"
+    },
+    "apply_transition": {
+      "title": "Aplicar y observar una transición compuesta",
+      "state": "partial",
+      "dependsOn": [
+        "drawing",
+        "frame_clock",
+        "session_owner"
+      ],
+      "evidence": "El controlador original solicita Wallpaper; la prueba simulada envía metadata-transfer/start-layout/end-layout con layoutID. El vídeo pasa de opacidad efectiva 0 a 1 y Android verifica los píxeles del cuadro seleccionado. No se probó animación OEM de zonas ni metadatos reales del iPhone.",
+      "exit": "Una traza debe unir mensaje, estado aplicado, cuadro de video y salida compuesta. Habilitar solo las escenas que el compositor puede aplicar.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UiSyncProtocol.kt"
+    },
+    "first_scene": {
+      "title": "Escena Ultra con iPhone y coche reales",
+      "state": "pending",
+      "dependsOn": [
+        "live_request",
+        "acceptance",
+        "apply_transition",
+        "lifecycle",
+        "runtime_lifetime",
+        "activity_install",
+        "presentation_performance"
+      ],
+      "evidence": "Pendiente: rótulo Ultra en iPhone, canal y layout coincidente no equivalen a nueva interfaz. Usuario vio CarPlay habitual, sin widgets ni multipantalla.",
+      "exit": "Layout real aceptado, transición real, video y capas locales coordinados en pantalla; trazas y captura sin interlocutor ni estados ficticios.",
+      "source": "docs/LEAPMOTOR_C11_ULTRA_STATUS.md"
+    },
+    "reconnect": {
+      "title": "Repetir y recuperar el comportamiento normal",
+      "state": "pending",
+      "dependsOn": [
+        "first_scene",
+        "baseline"
+      ],
+      "evidence": "Protecciones locales nuevas por AirPlaySession real incluso con controlador reutilizado: se retiran destino de pasajero, fuente P, ítem y solicitudes; callbacks y lecturas tardías no reactivan la sesión reemplazada. Clima opt-out bloquea readquisición por /info. CI del conjunto actual aprobado; repetición física de escena Ultra y estabilidad de red aún pendientes. Lote20oct: cierreScreenretirado, feedbackaudio/cleanup porsesión, HOMEcomandosretirados corregidosconregresiones; primercloseSource fijo permite atribuirorigen. AP-DISABLED ambasinterfacesprecede varioscortes: iniciadordesconocido; no declararestabilidadfísica resuelta. En APK54ce6128 el usuario sigue observando desconexiones. Root confirmó en seis eventos Instance idle timeout -> fallo hostapd con bridge flag true; corrección local pendiente de instalación y prueba física >5 minutos. La estabilidad no está resuelta. Incremento físico posterior: HotspotIdleBandRepairMain APPLIED; flag de apagado oportunista guardado y activo false, sin repetición en ventana >5min. Falta repetir sesión iPhone real, por lo que no se declara resuelta toda desconexión. APK5bbda42 instalada; flag de bridge idle timeout desactivado y leído FALSE. Root está comprobando >5min; falta resultado de estabilidad física.",
+      "exit": "Reproducir al reconectar y volver a CarPlay normal ante fallos, conservando escala, barras, video y control táctil.",
+      "source": "docs/LEAPMOTOR_C11_ULTRA_STATUS.md"
+    },
+    "vehicle_data": {
+      "title": "Velocidad, batería, autonomía y controles",
+      "state": "partial",
+      "dependsOn": [
+        "baseline",
+        "channel_opening"
+      ],
+      "evidence": "SOC y autonomía reales tienen proveedor C11 e iAP2; CP highVoltageBattery usa snapshot real con retirada por invalidez. Tarjeta Android SOC confirmada en coche. Siri responde autonomía, pero la consulta de batería da error: el wire moderno de HVbattery no está confirmado. Lectura TPMS RAW en desarrollo pasivo independiente; sin unidades ni alarma inferidas.",
+      "exit": "Después del primer hito, unir solo señales verificadas a servicios y widgets; validar valor, unidad, actualización y ausencia de dato. Controles requieren validación propia.",
+      "source": "docs/LEAPMOTOR_C11_TELEMETRY.md"
+    },
+    "extra_screens": {
+      "title": "Cuadro y otras pantallas con roles confirmados",
+      "state": "partial",
+      "dependsOn": [
+        "geometry",
+        "channel_opening"
+      ],
+      "evidence": "Se integra navegación111 ordinaria con el centro temático, separando decoder/panel/owner. Ruta C11 acotada del cuadro y preferencia existentes; depende de ruta verificada y contenido que iPhone/navegador ofrezca. No instrumentación completa ni pantalla acompañante independiente. Navegación: windowepoch+surfaceidentity ydetachdecoderantesretirarwindow,4regresiones. Sin nueva validaciónfísica.",
+      "exit": "Validar cada pantalla y su layout de forma independiente, sin sustituir indicadores obligatorios por una imagen de investigación.",
+      "source": "docs/LEAPMOTOR_C11_ULTRA_STATUS.md",
+      "cockpitIncrement": "VALIDADOporpropietario: indicaciones visiblesen cuadro en510df783/ruta2793; tamaño pequeño. MAP3D no presente. Corrección2a50aebf preparada/noinstalada congeometríaC11 ydecoder111 propio. Frames111 recibidos/procesados segúncontadores; no confundirconmapageográfico visible."
+    },
+    "runtime_lifetime": {
+      "title": "Duración ligada a sesión y límites por operación",
+      "state": "lab",
+      "dependsOn": [
+        "android_binding",
+        "session_owner"
+      ],
+      "evidence": "JNI explícito sin contador acumulado: 8192 operaciones en Mac y más de 5000 en Android antes de protocolo/composición original1920×720. Default conserva4096; deadline y cuatro VMs compartidas comprobados. No es resistencia de horas ni rendimiento en coche.",
+      "exit": "Seleccionar política solo con propietario/cierre por sesión; medir resistencia real sin eliminar límites de memoria, operación y mensajes.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraNativeRuntime.kt"
+    },
+    "scene_input": {
+      "title": "Entrada explícita del estado de escena local",
+      "state": "lab",
+      "dependsOn": [
+        "android_binding",
+        "session_owner"
+      ],
+      "evidence": "Servicio mínimo declarado antes del controlador original con valor inválido inicial. Opcode8 acepta estados0–4 o invalida255; mailbox enum/null ligado a conexión. Tests de pérdida de fuente y JNI aprobados; controlador original solicita Wallpaper por la nueva ruta con valores simulados. CI final aprobado (3156 tests, cero fallos/errores, uno omitido); 28 tests de host y siete de contratos aprobados. Android arm64 compilado; la ruta nueva de escena se ejecutó en host/JNI Mac, no en coche.",
+      "exit": "Probar servicio declarado, estado ausente/invalidado, límites, cierre y entrada al controlador sin inferir modo del vehículo.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraVehicleSceneLifecycle.kt"
+    },
+    "scene_mapping": {
+      "title": "Política explícita para la escena central seleccionada",
+      "state": "lab",
+      "dependsOn": [
+        "sources",
+        "scene_input"
+      ],
+      "evidence": "Política local explícita del Wallpaper: solicitud por conexión + host/superficie disponibles; suspensión/retirada, snapshot atómico, descarte de cuadros y tokens contra resultados de activaciones anteriores. Siete tests de política, incluido controlador original con peer simulado, y dos nuevas pruebas JNI de cuadros/configuración pasan. CI final aprobado (3165 tests, cero fallos/errores, uno omitido). Activity no selecciona la política y no se verificó aceptación/presentación real.",
+      "exit": "Comprobar la política local del Wallpaper seleccionado y su retirada/suspensión sin inferir encendido, conducir ni aceptación del iPhone; restringirla al contrato central y mantener separados los proveedores explícitos de escena.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraCenterScenePolicy.kt"
+    },
+    "resource_loading": {
+      "title": "Carga verificada de recursos para la sesión Android",
+      "state": "lab",
+      "dependsOn": [
+        "sources",
+        "minimal_layout"
+      ],
+      "evidence": "Manifiesto binario e inventario de recursos fijados por hash; copia privada con metadatos/rutas/tamaños comprobados. Once tests sintéticos y tres JNI con el paquete completo pasan: controlador original, PNG, cierre/fallo y origen intacto. Límite local1MiB separado de mensajes256KiB. CI3180 tests sin fallos/errores, uno omitido; Android compilado, ruta nueva ejecutada en JNI host. No instala recursos ni renderer en Activity.",
+      "exit": "Ejecutar el controlador original desde la copia verificada, compartirla con lectura de PNG, comprobar vida útil y limpieza sin tocar el origen; no afirmar firma ni aceptación del iPhone.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraPreparedResources.kt"
+    },
+    "resource_delivery": {
+      "title": "Entrega y selección explícitas del paquete de desarrollo",
+      "state": "lab",
+      "dependsOn": [
+        "resource_loading",
+        "minimal_layout"
+      ],
+      "evidence": "Stage acotado, manifiesto fijado y descriptor central. Selector de assets devuelve ausencia sin efectos o importa copia verificada ligada a VM; paquete declarado dañado falla. CI3188 tests sin fallos/errores, uno omitido; ocho tests nuevos pasan, incluido JNI con paquete real sin omisión. Host40 tests. APK habitual sin referencia; APK explícito contiene3073 archivos idénticos al stage y verificador previo al merge. Sin instalación ni iPhone real.",
+      "exit": "Empaquetar solo con flag debug explícito, verificar antes del merge y compartir selección/copia con runtime/PNG sin activar la Activity ni inferir aceptación.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraPackagedResourceSource.kt"
+    },
+    "activity_install": {
+      "title": "Instalación central por conexión y adjuntos de Activity",
+      "state": "partial",
+      "dependsOn": [
+        "resource_delivery",
+        "session_owner",
+        "lifecycle",
+        "video_texture",
+        "runtime_lifetime"
+      ],
+      "evidence": "APK 54ce6128 instalada y hash remoto verificado el 2026-10-20; usuario vio nuevo estilo de tarjeta SOC local. El host mantiene separación de vídeo y tarjeta/adjuntos por conexión. Esto no demuestra interfaz Ultra completa, multipantalla, clima ni Radio. Lecturas pasivas nuevas y corrección de red son cambios locales posteriores.",
+      "exit": "Preparar y seleccionar recursos antes de arrancar, tener un propietario por conexión y adjuntos seguros por Activity, verificar ausencia/fallo/retiro y conservación de ruta normal; mantener separada la evidencia del iPhone.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraReferenceCenterHost.kt"
+    },
+    "channel_opening": {
+      "title": "Apertura real del canal UI Sync tras negociar la capacidad",
+      "state": "real",
+      "dependsOn": [
+        "reset",
+        "geometry"
+      ],
+      "evidence": "Prueba center-plugin: SETUP a las 14:04:20.495 y propietario a las 14:04:20.837. Solo el binding con compositor central declara ese plugin; sin paneles adicionales ficticios.",
+      "exit": "Observar SETUP/HDS autenticado y tráfico real del propietario UI Sync; distinguir anuncio de capacidad, apertura y aceptación del recurso. Hasta entonces recuperar CarPlay normal ante espera agotada.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraHandshake.kt"
+    },
+    "presentation_performance": {
+      "title": "Encuadre y rendimiento utilizables en la pantalla real",
+      "state": "partial",
+      "dependsOn": [
+        "geometry",
+        "drawing",
+        "video_texture",
+        "activity_install"
+      ],
+      "evidence": "Corregidas localmente áreas heredadas, copia RGBA y caché de PNG por conexión acotada a16MiB. Regresiones y composición Android verifican píxeles y retirada; falta medir fluidez y encuadre reales. El recurso1920×720 sigue requiriendo adaptación a la principal2560×1440.",
+      "exit": "Validar área útil, escala legible, latencia/fluidez y reconexión con el iPhone en el coche; no sustituir esta evidencia por tiempos de emulador.",
+      "source": "common/src/main/java/com/shilapi/xcertplay/ultra/UltraSceneRenderer.kt"
+    },
+    "climate_protocol": {
+      "title": "Siri/climatización: servicio de temperatura y confirmación",
+      "state": "partial",
+      "dependsOn": [
+        "channel_opening",
+        "climate_oem"
+      ],
+      "evidence": "Registro vacío por defecto; broker autorizado explícito aporta backend independiente por sesión. /info y SETUP usan esa misma lease, con rechazo del iPhone, revocación y cierre acotados. Protocolo cifrado y confirmación asíncrona simulada cubiertos. Sin permiso/broker OEM ni paso real verificados, sin uso Siri en coche. Validación del usuario 2026-10-20: Siri no logra encender A/C; no afirmar control funcional.",
+      "exit": "iPhone acepta servicios y una orden Siri recibe confirmación sólo tras cambio observado en el coche.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraClimateBackend.kt"
+    },
+    "climate_oem": {
+      "title": "Climatización: acceso autorizado al coche y semántica OEM",
+      "state": "partial",
+      "dependsOn": [
+        "baseline"
+      ],
+      "evidence": "Controlador Float HVAC_TEMPERATURE_SET358614275 áreas49/68 y adapterworker implementados. CarProperty requiere CONTROL_CAR_CLIMATE; broker oficial filtra paquetes. No hay vía DiPlay autorizada confirmada ni paso de temperatura verificado. Sin activación automática ni writes al coche. Fábrica CarProperty explícita confirmware/mapping/pasoevidenciados, permiso real+opt-in poroperación yretiromanager implementada. No provisiónreal/configstep ni autoactivación. Decoder SomeIP pasivo HVAC integrado, probado y instalado; captura física de objetivo derecho20.0°C, izquierdo sin valor. Esto no habilita broker ni órdenes de temperatura/power/compresor. APK5bbda42: lectura pasiva real RIGHT objetivo20.0°C; LEFTUNAVAILABLE. Es objetivo, no aire interior medido ni permiso de escritura. Evidencia física posterior: CarShellSYSTEM/PRIVILEGED, UID2000real y CONTROL_CAR_CLIMATE granted=true; DiPlay sinpermiso. Ruta estándarCarProperty candidata con identidadshell legítima, probeREADONLY en desarrollo; acceso a dato fresco/actuación aún sin probar. Probe físico CarShell ejecutado: permisoantes/despuéstrue; target358614275RWFloat16..32 anunciaareas49/68 pero ambosGET retornanarea0,value16,timestamp0. Dato inválido/placeholder, NOcontrol. CarShellprovider sólo dumpsys; strcontrol sóloSTR7009; CustomSceneService exigeuidpackagecom.leapmotor.scene. No rutaescrituraaccesible verificada paraDiPlay/shell; detenerprobesgenéricos. Dependencia firmware/brokerOEM real sigueabierta.",
+      "exit": "Verificar permiso o broker autorizado, lectura fresca, paso y orden con confirmación posterior; nunca ocultar permisos tras un mock.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/vehicle/leapmotor/LeapmotorUltraClimateBackend.kt",
+      "nextConcreteValidation": "Comprobar si existe cliente CarProperty con permiso real CONTROL_CAR_CLIMATE y configuración/área HVAC soportadas. SDK110x OEM filtra permiso y prefijo de paquetes, sin excepción shell/root en la ruta revisada. Root real es una posibilidad no investigada, no acceso probado. No suplantar paquete ni usar inyección VHAL como control físico. Éxito: lectura fresca→setter autorizado→nuevo evento OEM que confirme el valor aplicado.",
+      "responsibleModule": "HVAC independiente; docs/ULTRA_HVAC_MODULE_STATUS.md; revisión docs/ULTRA_HVAC_XHIGH_REVIEW.md",
+      "diagnosticExperiment": "docs/ULTRA_HVAC_SET_EXPERIMENT.md: check/set-once UID2000 legítimo, permiso/configRW, entero18..32 a1grado, setterúnico ylistenerreal. NoGETprevio/nobackendSiri. ProbadoenCI, sincalibraciónfísica niSETejecutado.",
+      "negativeSetDiagnostic": "SET-once shell-only conserva un único intento; observa≤500ms erroresVHAL coincidentes. Sin transactionID ni garantía de callback; ausencia deerror no confirma actuación. CI13nuevaspruebas, no ejecuciónfísica.",
+      "offlineStateReview": "21oct AirManager distingue1010 raw y1310 auto con callback1010 sintetizado; mACState1003 no se actualiza en rama HVAC automática. No copiar enumBinder aSomeIP ni declarar compressorState desde cache; sin nuevos controles."
+    },
+    "battery_widget": {
+      "title": "Batería real visible y consultas del iPhone",
+      "state": "partial",
+      "dependsOn": [
+        "vehicle_data",
+        "minimal_layout"
+      ],
+      "evidence": "Tarjeta Android local integrada fuera del vídeo: usuario confirmó SOC real 12% y nuevo estilo tras instalar 54ce6128. Se verificaron seis capturas nativas, geometría C11 font1.5 y 12/100%; 0% válido y fuente ausente/espacio insuficiente ocultan tarjeta. La barra superior sigue molestando; diseño diferido. Siri SOC falla aunque autonomía km responde. Wallpaper carece de zonas: widget Apple charging y esquema HVbattery moderno pendientes.",
+      "exit": "Un valor real actualizado visible en interfaz/widget, sin combustible disfrazado de SOC; validar por separado Siri y widget.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/airplay/UltraVehicleBatteryLifecycle.kt",
+      "designIdea": {
+        "reference": "https://www.km77.com/coches/leapmotor/t03/2024/estandar/informacion/leapmotor-t03-2024-consumo-y-recarga",
+        "requestedByOwner": "Icono de coche pequeño con porcentaje de batería de tracción y batería coloreada",
+        "socColors": {
+          "above50Percent": "green",
+          "from25To50Percent": "blue",
+          "below25UntilReserve": "amber",
+          "belowReserve": "red"
+        },
+        "reserveThreshold": {
+          "state": "UNVERIFIED",
+          "ownerApproximateRangeKm": 83,
+          "socPercent": null,
+          "note": "Confirmar umbral real del C11; no deducir porcentaje fijo desde autonomía variable ni importar umbrales del T03 de la referencia."
+        },
+        "state": "idea_deferred_until_vehicle_data_verified",
+        "constraints": [
+          "SOC real del coche, nunca del iPhone",
+          "No presentar charging, reserva ni autonomía como confirmados si faltan datos",
+          "Revisar encaje junto al tiempo/temperatura al retomar diseño de barra"
+        ],
+        "referenceStatus": "La URL consultada redirige a información general del T03, sin imagen recuperada. Guardadas la referencia y la descripción explícita del usuario; no se afirma haber visto la fotografía."
+      },
+      "ownerVisualFeedback": "2026-10-20: usuario reporta mayor respuesta al conectar Ultra, pero estética insatisfactoria; foto compartida muestra banda negra superior amplia e indicador diminuto. Vista previa320x240 revisada. La tarjeta se coloca en espacio fuera del vídeo y no reserva una franja; investigar geometría/canvas y diseñar conjunto antes de retocar dimensiones. Temperatura exterior aún ausente en CarPlay. Sin nueva UI aplicada.",
+      "transparentHeaderRequest": "Varianteb270993c preparada/noinstalada. -PultraTransparentHeader=true(defaultfalse): batería inline yalpha sólobandasuperior libre bajoOEM haciawallpapersistema; videooriginalintacto y restoopaco. CI3492PASS+5PNGs. OEMwallpaperfísicopendiente, puedeverse negro si noexiste. Sinleerimagenpersonal."
+    },
+    "widget_layout": {
+      "title": "Widgets y controles visibles adaptados a Leapmotor",
+      "state": "partial",
+      "dependsOn": [
+        "minimal_layout",
+        "vehicle_data",
+        "climate_protocol"
+      ],
+      "evidence": "Wallpaper tiene cero zonas y ChargeFuel original usa combustible. UltraBatteryCard Android local ya fue vista en coche con SOC real y estilo nuevo; no es widget iPhone. Fixture raster anterior y seis capturas de tarjeta son evidencia local separada. Widget del iPhone, canal requestContent y controles de clima visibles siguen pendientes; Vehículo/Clima/Radio no funcionan en validación del usuario.",
+      "exit": "Implementar layout y destino de composición, canal de contenido, datos frescos e interacción; batería/clima visibles de extremo a extremo, no sólo mock o URL.",
+      "source": "docs/LEAPMOTOR_C11_ULTRA_WIDGET_LAYOUTS.md"
+    },
+    "passenger_entertainment": {
+      "title": "Acompañante como destino independiente de entretenimiento y vídeo",
+      "state": "partial",
+      "dependsOn": [
+        "geometry",
+        "channel_opening",
+        "passenger_parked"
+      ],
+      "evidence": "Ruta explícita de vídeo con identidad local:130/firmware/arranque y modo, sin fallback; pérdida cierra reproductor. Reconexiones reales retiran rutas/ítems/solicitudes/fuentes P y exigen selección nueva; pruebas del incremento actual aprobadas en CI. Sin provisión física ni P C11 validado, vídeo C11 sigue apagado. Rol iPhone independiente, simultaneidad y audio/DRM pendientes.",
+      "exit": "Interfaz de entretenimiento y vídeo real en acompañante, input/sonido/ciclo independientes y límites de la plataforma comprobados.",
+      "source": "common/src/main/java/com/shilapi/xcertplay/CarPlayVideoDestination.kt"
+    },
+    "passenger_parked": {
+      "title": "Estado P real del C11 para disponibilidad de vídeo",
+      "state": "partial",
+      "dependsOn": [
+        "baseline"
+      ],
+      "evidence": "Conector opcional android.car y lectura GEAR_SELECTION289408000/P4 con normal CAR_POWERTRAIN. Activity abre observación diagnóstica sólo con Ultra manual, host visible y sesión real; cierra al pausar/terminar/reemplazar. CURRENT_HAL_SNAPSHOT conserva timestampOEM y entregaGET por separado, TTL5s sobre entrega y desconocido ante error/GETlento/cierre. Captura allowlisted de estados/edades; sin feed al gate de vídeo. Nuevas pruebas locales aprobadas en CI; no lectura física ni vídeo habilitado. Verificación anterior de12tests correspondía a política previa estricta por evento.",
+      "exit": "Validar permiso, configuración, valores R/N/D/P y contrato de vigencia continuo en coche; sólo entonces conectar la disponibilidad de vídeo.",
+      "source": "common/src/main/java/com/shilapi/xcertplay/vehicle/LeapmotorParkedIntegration.kt"
+    },
+    "radio_protocol": {
+      "title": "Radio del vehículo mediante propietario único Vehicle State",
+      "state": "partial",
+      "dependsOn": [
+        "vehicle_data",
+        "channel_opening"
+      ],
+      "evidence": "MóduloDAB confirmadoLIVI agregado aVehicleStatePrototype/Runtime: config/register mixtos, updates, control confirmado porobservación,20tests incluyendo2cifrados. BackendEngine/C11 ausente; noFM ficticio niappfuncionaldeclarada. Pendiente factory/leases receptor yfuente autorizada. Validación del usuario 2026-10-20: Radio no funciona; no existe backend C11 físico confirmado.",
+      "exit": "Backend legítimo del sintonizador real, contrato de fuente correcto y apertura/control Radio observados en iPhone/coche.",
+      "source": "docs/ULTRA_RADIO_INTEGRATION.md",
+      "currentIteration": "Excluded: owner clarified radio is not enabled."
+    },
+    "wheels_telemetry": {
+      "title": "Neumáticos: presión y temperatura reales por rueda",
+      "state": "partial",
+      "dependsOn": [
+        "baseline",
+        "vehicle_data"
+      ],
+      "evidence": "RAW8canales más12flags OEM integrados localmente con cachés independientes por epoch y diagnóstico. Flags reproducen sólo predicado cero del bean OEM, no salud del sensor ni enums completos. El capturador público anterior no incluía TPMS: su silencio no demuestra ausencia física. Parser estricto corregido,32pruebasPythonPASS; CI completo3508JUnitPASS (0fallos/errores,1skipprevio); candidata2bc9f9a9 preparada/noinstalada y captura física pendiente. Unidades RAW aún desconocidas; sin reset/escritura/UI iPhone.",
+      "exit": "Observar ocho canales reales y variante TPMS, confirmar unidades/conversión contra pantalla OEM y retirada ante ausencia; luego integrar proveedor semántico y presentación por rueda sin inventar datos.",
+      "source": "docs/ULTRA_WHEELS_TELEMETRY.md",
+      "responsibleModule": "TPMS independiente; docs/ULTRA_WHEELS_TELEMETRY.md",
+      "offlineConsumerReview": "Unity RefreshTires recibe Proto.BtnData.Value string ya procesado; sin escala/offset en consumidor. OnChangeUnitType sólo km/mi. Etiquetasglobales kPa/°C no prueban binding/RAWmapping. Sin normalización; evidencia privada reproducible. Revisión21oct: UnityMgrImpl.setValue conserva string recibido; UnityMessenger protobuf/Base64 y SDKMgr lo reenvían intacto. Puente Java previo a Proto.Value sin escala/offset demostrado; binding activo de unidades pendiente."
+    },
+    "ambient_temperatures": {
+      "title": "Temperatura exterior e interior medida, separada del objetivo HVAC",
+      "state": "partial",
+      "dependsOn": [
+        "baseline",
+        "vehicle_data"
+      ],
+      "evidence": "Decoder/cache/captura OEM1221 interior y1016 exterior corregida implementados y validados físicamente:25.0/14.5 raw. Consumidor de voz OEM concatena ambos valores con grados sin conversión; unidad Celsius, sentinelas y sensor validity aún UNKNOWN. No son objetivos11205/11206. Vía Android ENV_OUTSIDE_TEMPERATURE con permiso NORMAL, GET validado, lease independiente y suscripción1Hz: registro/callback reales pero timestamp0, estadoSTALE sin valor publicable. CI3469 sin fallos/errores más33Python.",
+      "exit": "Capturar ambas señales reales; probar unidad, sentinelas y validez contra consumidor/pantalla OEM; sólo entonces proveedor semántico y presentación/consulta iPhone. Retirar dato al perder fuente sin fingir aire interior a partir de consigna.",
+      "source": "shared/src/main/java/com/shilapi/xcertplay/vehicle/leapmotor/LeapmotorSomeIpAmbientDecoder.kt",
+      "designIdea": "Idea del usuario: colocar temperatura exterior del coche junto al icono meteorológico Android (soleado, sol y nubes, nuboso, lluvia). Diferir diseño de barra hasta validar datos y propiedad de esa región; no inferir tiempo meteorológico desde temperatura. Posición exacta pendiente de comprobar SystemUI/DiPlay.",
+      "responsibleModule": "Temperaturas medidas independientes; docs/ULTRA_AMBIENT_TEMPERATURES.md",
+      "offlineValidityReview": "IDs catálogo1215/1216/1014 candidatos sin tipo/enum/binding demostrado; no nuevo decoder ni unidad inventada. Seguimiento21oct: matches1014 en SettingsManager corresponden a control de vinculación del vehículo, otro namespace; descartados como evidencia de validezTMS."
+    },
+    "roof_sunshade": {
+      "title": "Abrir y cerrar parasol del techo con acceso y confirmación reales",
+      "state": "partial",
+      "dependsOn": [
+        "baseline",
+        "vehicle_data"
+      ],
+      "evidence": "Lectura pasiva2801 RZCU_SS_PositionSts recibida físicamente raw0/UI100; configsunshade1. Decoder/cache y retirada por época/silencio implementados y CI aprobado. Vidrio2800 separado. SDK1105 identificado, pero autorización OEM bloqueada, STOP/interlocks/semántica física de extremos desconocidos. Ningún movimiento ni control Siri instalado.",
+      "exit": "Verificar capacidad de cortina, lectura real, ruta autorizada de abrir/cerrar y semántica de parada/confirmación; retirar capacidad ante fuente o permiso ausente. Validar separadamente interfaz/Siri si existe contrato iPhone.",
+      "source": "docs/ULTRA_ROOF_SUNSHADE.md",
+      "responsibleModule": "Parasol independiente; docs/ULTRA_ROOF_SUNSHADE.md",
+      "offlineFollowUp": "ControlEvent1105/1111/1117 y posibles HALWINDOW_* inventariados sin contrato admitido, STOP ni mappingparasol/vidrio. CalibraciónOEMpasiva descrita; no actuación."
+    },
+    "ev_assistant": {
+      "title": "LeapMoto (LipMoto): voz, plan EV inicial y reevaluación del viaje",
+      "state": "partial",
+      "dependsOn": [
+        "vehicle_data",
+        "climate_oem"
+      ],
+      "evidence": "Núcleo energía, adaptadorResponsesAPI contoolplan_ev_tripestricto/transporteHTTPSexplícito/backend y reevaluación event-driven implementados;60testsPythonPASS sinred. Usa contexto/consumo/política/reloj suministradosporapp,noargumentosLLM. Reevalúa reserva,consumo,progreso/ETA/routeversion y estado/conectorEVSEfresco con dedupe/cooldown, sinprediccióninventada de disponibilidadfutura. Aún no conectadoaOpenAIreal/vozAndroid/telemetría/mapas/operadores.",
+      "exit": "Petición de voz→destino/origen confirmados→ruta real con paradas y energía/trazabilidad→waypoints aceptados por navegador; revalidación cerca deETA, disponibilidad actual/pronóstico/reserva separados; controlar sólo funciones con permiso y readback real.",
+      "source": "tools/ev_assistant/planner.py",
+      "priority": "low",
+      "priorityReason": "El usuario reactivó el trabajo en ChatGPT en paralelo a la variante visual; conserva prioridad relativa inferior a integración funcional del coche. Sin accesos a credenciales/personales.",
+      "ownerInstalledChargingApps": [
+        "UTE Mueve",
+        "Cargo",
+        "Electromaps",
+        "PlugShare",
+        "Zletric",
+        "Eone",
+        "ABRP"
+      ],
+      "providerIntegrationStatus": "Referencias proporcionadas por usuario, contratos/API/cuentas/cobertura todavía no verificados. Conectores extensibles para más operadores, distinguir planificación/disponibilidadactual/pronóstico/reserva y deduplicar EVSE.",
+      "assistantName": "LeapMoto",
+      "spanishPronunciation": "LipMoto",
+      "currentScope": "Navegación/carga EV exclusivamente: plan previo y reevaluaciones según consumo real, progreso y estado fresco de cargadores. Controles del coche se incorporarán después de resolver integración física.",
+      "reassessmentInputs": "SOC/capacidadútil/consumo,progreso/ETA,estadoEVSE fresco; futuros datos verificados de velocidad/tráfico,desnivel,viento/temperatura,HVAClógico,potenciacarga/curva,horarios/acceso,reliability y alternativas. No inventar datos/ponderaciones ni inferir estado futuro desde ocupaciónactual."
+    },
+    "contextual_cockpit": {
+      "title": "Zona del mapa contextual: ruta, batería y otras tarjetas",
+      "state": "partial",
+      "dependsOn": [
+        "extra_screens",
+        "vehicle_data"
+      ],
+      "evidence": "Fallback SOC/range real implementadoenoverlayC11 para seleccióncustom. Mapa/instrucciónprevalecen, TTL5s publicaciónhost yretiroocultar/dismiss. CI3523PASS y3PNGs compact/full/Arabicfont1.5 revisadas. Candidata510df783 instalada, validaciónfísicacercanapendiente.",
+      "exit": "Arbitraje y retirada por fuente/contexto validados en zona verificada; no cubrir instrumentos ni giros con tarjetas secundarias.",
+      "source": "docs/ULTRA_CONTEXTUAL_COCKPIT.md"
+    },
+    "maintenance_cards": {
+      "title": "Secuencia inicial de mantenimiento con procedencia",
+      "state": "pending",
+      "dependsOn": [
+        "contextual_cockpit"
+      ],
+      "evidence": "InventarioOEMlocal: odómetro3904 yvencimientogeneralpersistido, no sensoresdevida porcomponente. Refrigerantemotor6400/6401 esREEV yCSVcontradiceaceite; no aplicargenericoBEV. SinintervalosC11/historialverificados; noimplementadocountdown.",
+      "exit": "Datos OEM o intervalo aplicable más base de servicio conocida; registros manuales identificados, desconocidos explícitos; sin deducir desgaste por kilometraje. Sin autoarranqueBluetooth.",
+      "source": "docs/ULTRA_CONTEXTUAL_COCKPIT.md"
+    },
+    "cluster_map_picture": {
+      "title": "Plano real de ruta en cuadro y perspectiva simplificada3D",
+      "state": "pending",
+      "dependsOn": [
+        "extra_screens"
+      ],
+      "source": "docs/ULTRA_CLUSTER_MAP_GAP.md",
+      "evidence": "Indicaciones validadas; mapa ausente. SETUP111 y tráfico/decoder demostrados, no presentación. Candidata local: dimensiones porstream, buffer enum y requestUI MAP_CLUSTER estricto; actualparseriAP2sinpolilínea, GPSAndroid→iPhone no ruta devuelta. Próxima prueba correlacionará contenido111 y composición.",
+      "exit": "Ruta real visible ylegible encuadro, perspectiva segúncontrato realdelnavegador/renderer; sinreconstruircalles desdeflechas ni inventarincidentes.",
+      "visualReference": "User-attached AMap image: real perspective route, vehicle below, large next maneuver above; preserve bounded OEM navigation region."
+    },
+    "vehicle_settings": {
+      "title": "Acceso Vehículo y panel de ajustes integrado",
+      "state": "partial",
+      "dependsOn": [
+        "android_binding",
+        "session_owner",
+        "drawing"
+      ],
+      "source": "docs/ULTRA_VEHICLE_SETTINGS_CONTRACT.md",
+      "evidence": "Panel local read-only real conecta proveedor cacheado de batería con fuente SETTINGS1650x720 en la ruta C11 Ultra opt-in. Taps sólo tras Canvas aceptado/epoch vigente, geometría afín/clip y token exacto; Activity conserva propiedad del gesto a través de fallback/reconexión. Pruebas dirigidas PASS de batería/detalle/Back, oclusión, cancelación y lifecycle. CI completo PASS 3599 JUnit, 0 fallos/errores, 1 omitidos, 126 Python; NO instalado, callback físico del icono y panel visible/dismissible aún pendientes. requestUI/HOME sin alterar.",
+      "exit": "IconoVehículo abre ycierra panelreallegible, fuente ypíxeles/input/ownership válidos, controlesúnicamenteconbackendadmitidoyretornoindependiente. ACK/HOME/fixture no cuentancomoéxitofísico."
+    }
+  },
+  "nextDeliverable": {
+    "title": "Integración funcional de vehículo y destinos, con validación local y bloqueos físicos explícitos",
+    "tasks": [
+      "climate_oem",
+      "climate_protocol",
+      "battery_widget",
+      "widget_layout",
+      "passenger_entertainment",
+      "geometry",
+      "acceptance",
+      "reconnect",
+      "passenger_parked",
+      "radio_protocol",
+      "wheels_telemetry",
+      "ambient_temperatures",
+      "roof_sunshade"
+    ],
+    "acceptanceCriteria": [
+      "Ejecutar CI completo, pruebas JNI con los recursos originales y composición Android del APK candidato.",
+      "Conservar aislamiento por sesión, revocación y ausencia de datos inventados o confirmaciones anticipadas.",
+      "Validar UltraBatteryCard integrada fuera del vídeo con SOC/rango reales, sin confundir tarjeta Android local con widget iPhone o respuesta Siri.",
+      "Validar observación P manual por sesión y ruta física del acompañante; mantener vídeo C11 apagado hasta disponer de contrato P real y destino provisionado.",
+      "Resolver acceso OEM autorizado y paso de temperatura antes de anunciar climatización a un iPhone real.",
+      "Preparar layout/destino para widgets visibles y navegación del tablero; no bloquear estas ramas esperando perfección gráfica.",
+      "Coordinar con la otra sesión de SystemUpdate antes de cualquier instalación o prueba física.",
+      "Capturar TPMS pasivo RAW por rueda con validez y edad; confirmar unidades físicas antes de mostrar presión/temperatura o anunciar servicios al iPhone.",
+      "Capturar temperatura real interior/exterior sin confundirla con consigna HVAC; no mostrar grados ni anunciar controles hasta verificar unidad/validez. Parasol requiere vía autorizada y confirmación separada del vidrio."
+    ]
+  },
+  "ownerEvidenceAlbum": "https://photos.icloud.com/shared/album/0f8ofEj6tMwMuRJ2bQH7WoasQ",
+  "ownerEvidenceAlbumAccess": "2026-10-20: segundo enlace devuelve Shared Album invitation y vista genérica iCloud; fotografías no visibles sin acceso adicional. Primer enlace permitió revisar sólo vista previa320x240. No se afirma haber visto el contenido del segundo álbum.",
+  "preparedVariant": {
+    "apk": ".private/c11/ultra-20261020/DiPlay-Ultra-transparent-header-dev-20261020.apk",
+    "sha256": "b270993cee05042a0a801c77384adf9e1aa06e78dda18105335af1b9fb93e75f",
+    "installed": false,
+    "ci": "PASS",
+    "junitTests": 3492,
+    "junitFailures": 0,
+    "junitSkipped": 1,
+    "leapMotoPythonTests": 60,
+    "nativeScreenshotsReviewed": 5,
+    "physicalOemWallpaperVerified": false
+  },
+  "assistantButtonAudit": {
+    "source": "docs/LEAPMOTOR_C11_ASSISTANT.md",
+    "installedApkHasMapping": true,
+    "single": "SIRI",
+    "double": "IPHONE_CHATGPT_EXPERIMENTAL_LAUNCH_REQUEST",
+    "leapMotoConnected": false,
+    "defaultEnabled": false,
+    "currentCarSettingVerified": false,
+    "physicalPhoneLaunchVerified": false
+  },
+  "experienceReference": {
+    "source": "docs/ULTRA_ASTON_MARTIN_USER_REFERENCE.md",
+    "status": "Referencia del usuario; especificación oficial no verificada",
+    "c11Scope": "docs/ULTRA_CONTEXTUAL_COCKPIT.md",
+    "preserveOemCluster": true,
+    "bluetoothAutoLaunch": false,
+    "clusterVisualTarget": {
+      "date": "2026-10-20",
+      "source": "User-attached AMap navigation image",
+      "publicReference": "https://www.instagram.com/p/DdrrQmYGj_6/",
+      "target": "Perspective real route, highlighted path, vehicle below, large maneuver and distance above in verified C11 tile",
+      "dataBoundary": "No invented route geometry, lanes, traffic signals or countdowns",
+      "implementation": "PENDING_REAL_MAP",
+      "documentation": "docs/ULTRA_CLUSTER_MAP_GAP.md"
+    }
+  },
+  "preparedVehicleModules": {
+    "date": "2026-10-20",
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-vehicle-modules-transparent-dev-20261020.apk",
+    "sha256": "2bc9f9a988a991915bf6a679fbf573897be340cecc58aba9c0239958b657d235",
+    "installed": false,
+    "transparentHeaderBuildFlag": true,
+    "fullRequiredCiPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1879,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1610,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3508,
+    "capturePythonTests": 32,
+    "physicalFanAndTireFlagsValidated": false,
+    "newClimateControl": false,
+    "scope": "Passive fan1008 +12TPMSflags, epochs/teardown/diagnostics and strict capture; transparent-header variant preserved",
+    "ciLog": "/private/tmp/diplay-ultra-modules-ci-20261020.log",
+    "packagedTransparentHeaderResource": true
+  },
+  "hvacIndependentReview": {
+    "reasoningEffort": "xhigh",
+    "handoff": "docs/ULTRA_HVAC_XHIGH_REVIEW.md",
+    "findings": "docs/ULTRA_HVAC_XHIGH_FINDINGS.md",
+    "mode": "local read-only, no car access",
+    "nextExperiments": [
+      "Calibrar consignas izquierda/derecha y retorno independiente",
+      "Probar una sola escritura VHAL autorizada sólo tras calibrar retorno",
+      "Caracterizar BinderPool5/QnxUnityTransImpl y admisión real antes de actuar"
+    ],
+    "physicalWritesExecuted": false
+  },
+  "installedRenderLockCorrection": {
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-render-lock-original-header-dev-20261020.apk",
+    "sha256": "510df7839c18136d191b7ac221da62520f0492fd6d8ab993d7b11b4b8fdd6571",
+    "installed": false,
+    "fullRequiredCIPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1890,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1614,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3523,
+    "tpmsPythonTests": 7,
+    "nativeScreenshotsInspected": [
+      "compact-large.png",
+      "full-large.png",
+      "full-ar-rtl-large.png"
+    ],
+    "physicalBlackScreenCause": "UNCONFIRMED",
+    "fix": "Canvas publication separated from host-state lock; readiness fenced by activation/attachment/epoch; surface detach remains serialized",
+    "contextualBattery": "Bounded C11 map tile, custom-card selection only, real cached SOC/range, navigation priority, publication expiry",
+    "hvacSetDiagnostic": "Explicit shell-only check/set-once; no physical execution and no Siri/backend registered",
+    "ciLog": "/private/tmp/diplay-ultra-render-lock-original-header-ci-20261020.log",
+    "transparentHeaderBuildFlag": false,
+    "installedHashVerified": true,
+    "installedPath": "/data/app/~~p9X8oTvNOOHfYpxTpkryIA==/com.shihab.diplay.hudtest-yEgaT6v0oHRIxNrYyM2rgg==/base.apk",
+    "packagedTransparentHeaderResource": false,
+    "bootCount": 2793,
+    "overlayPermission": "allow",
+    "routePreservedAfterInstall": true,
+    "physicalBlackScreenFixed": false,
+    "nearbyIphoneValidation": "OWNER_CONFIRMED_SMALL_TURN_DIRECTIONS_NO_MAP",
+    "supersededBy": "e6ced9da96f674ec31962332ea7178b90609b96a92965929c01f1c1f31df72c7"
+  },
+  "preparedFirstCanvasWatchdog": {
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-first-canvas-watchdog-dev-20261020.apk",
+    "sha256": "275c099543f9d466202d171fd71b03f6346fb9337294594b4dabc5527c458f4d",
+    "installed": false,
+    "fullRequiredCIPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1898,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1614,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3531,
+    "capturePythonTests": 32,
+    "tpmsEvidencePythonTests": 7,
+    "transparentHeader": false,
+    "newFailureReason": "FIRST_FRAME_TIMEOUT",
+    "canvasBudgetMillis": 10000,
+    "canvasBudgetStarts": "UI Sync panel opened, counts usable foreground time only",
+    "physicalBlackScreenFixed": false,
+    "ciLog": "/private/tmp/diplay-ultra-first-canvas-ci-20261020.log"
+  },
+  "activePhysicalValidation": {
+    "installedSha256": "e6ced9da96f674ec31962332ea7178b90609b96a92965929c01f1c1f31df72c7",
+    "bootCount": 2795,
+    "capture": ".private/c11/ultra-20261020/vehicle-settings-installed-owner-test-2795.jsonl",
+    "status": "CAPTURE_STOPPED",
+    "rendererFailureObserved": true,
+    "blackScreenResolved": false,
+    "ownerVisualResult": "AWAITING_FEEDBACK_DETAILS",
+    "active": false,
+    "ownerFeedbackReceived": true,
+    "note": "Captura histórica concluida. El propietario reporta pérdida de conexión fuera de foco/cámaras y pantalla negra al reconectar; también confirma indicaciones y mapa simplificado en el cuadro."
+  },
+  "preparedClusterLegibility": {
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-cluster-legibility-map-dev-20261020.apk",
+    "sha256": "2a50aebfeb75c3c95d4f595385e8c87be13477c6bc3cc1ae4589859cb3676539",
+    "installed": false,
+    "fullRequiredCIPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1904,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1617,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3540,
+    "capturePythonTests": 35,
+    "nativeScreenshotsInspected": [
+      "compact-large",
+      "full-large",
+      "full-ar-rtl-large",
+      "full-explicit-size-position-large"
+    ],
+    "ownerDirectionsPhysicallyConfirmedOn": "510df7839c18136d191b7ac221da62520f0492fd6d8ab993d7b11b4b8fdd6571",
+    "c11DefaultCardPixelsBefore": [
+      150,
+      58
+    ],
+    "c11DefaultCardPixelsAfter": [
+      396,
+      150
+    ],
+    "c11ClusterDecoderDimensions": [
+      720,
+      720
+    ],
+    "physicalMap3DValidated": false,
+    "transparentHeader": false,
+    "ciLog": "/private/tmp/diplay-ultra-cluster-legibility-map-ci-20261020.log"
+  },
+  "ownerCockpitValidation": {
+    "date": "2026-10-20",
+    "installedSha256": "510df7839c18136d191b7ac221da62520f0492fd6d8ab993d7b11b4b8fdd6571",
+    "directionsVisible": true,
+    "sizeTooSmall": true,
+    "simplified3DMapVisible": false,
+    "navigator": "AWAITING_OWNER",
+    "centralBlackScreenResolved": false
+  },
+  "preparedClusterBufferDiagnostic": {
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-cluster-buffer-diagnostic-dev-20261020.apk",
+    "sha256": "bd8eeaede1e0d091eb9b570cbdecfa48364eab9456091f3fa73fb7fdfa54e554",
+    "installed": false,
+    "fullRequiredCIPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1904,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1624,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3547,
+    "capturePythonTests": 36,
+    "transparentHeader": false,
+    "physicalMap3DValidated": false,
+    "physicalBlackScreenFixed": false,
+    "diagnostic": "Debug-only one 64x64 PixelCopy sample in memory per visible stream111 activation; enum only, no saved pixels; no physical-presentation claim",
+    "includes": [
+      "larger C11 turn card",
+      "per-stream decoder dimensions",
+      "first-Canvas watchdog"
+    ],
+    "ciLog": "/private/tmp/diplay-ultra-cluster-buffer-ci-20261020.log",
+    "packagedTransparentHeaderResource": false
+  },
+  "preparedMapHvacDiagnostic": {
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-map-hvac-diagnostic-dev-20261020.apk",
+    "sha256": "afc974ec0e16d147585d401e6bd7246fbd4f3d9da6c7256e0683a3293dfbfa62",
+    "installed": false,
+    "fullRequiredCIPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1918,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1624,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3561,
+    "capturePythonTests": 36,
+    "tpmsEvidencePythonTests": 7,
+    "leapMotoPythonTests": 60,
+    "transparentHeader": false,
+    "physicalMap3DValidated": false,
+    "physicalBlackScreenFixed": false,
+    "hvacSetExecuted": false,
+    "siriVehicleControlEnabled": false,
+    "includes": [
+      "C11 turn card legibility",
+      "per-stream decoder dimensions",
+      "first-Canvas watchdog",
+      "debug-only buffer content classification",
+      "exact MAP_CLUSTER request diagnostic",
+      "bounded HVAC asynchronous negative-error observation"
+    ],
+    "ciLog": "/private/tmp/diplay-ultra-map-hvac-ci-20261020.log"
+  },
+  "ownerVehicleEntryClarification": {
+    "date": "2026-10-20",
+    "entry": "Vehículo inside CarPlay Ultra",
+    "confirmed": true,
+    "protocolPathVerified": false,
+    "radioIncludedInThisIteration": false,
+    "carAccess": "NONE_LOCAL_ONLY"
+  },
+  "preparedVehicleSettingsContract": {
+    "artifact": ".private/c11/ultra-20261020/DiPlay-Ultra-vehicle-settings-contract-dev-20261020.apk",
+    "sha256": "e6ced9da96f674ec31962332ea7178b90609b96a92965929c01f1c1f31df72c7",
+    "installed": true,
+    "fullRequiredCIPlusDiagnostics": "PASS",
+    "junit": {
+      "shared": {
+        "tests": 1920,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "common": {
+        "tests": 1624,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "samples/home": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tools/c11diagnostics": {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "totalJUnit": 3563,
+    "capturePythonTests": 37,
+    "settingsOriginalControllerTests": 4,
+    "centerRegressionTests": 4,
+    "assetPackagingTests": 12,
+    "tpmsEvidencePythonTests": 7,
+    "leapMotoPythonTests": 60,
+    "transparentHeader": false,
+    "liveSettingsSourceDeclared": false,
+    "vehicleAppFunctional": false,
+    "radioChanged": false,
+    "carAccess": false,
+    "changes": [
+      "Optional explicit input kind SETTINGS=1, default phone3 preserved",
+      "Only first phone3 owns presentation clock",
+      "Original Settings gauge present/dismiss verified with synthetic source",
+      "Bounded request-shape diagnostics, no peer stream names or URL data"
+    ],
+    "labReport": ".private/c11/ultra-20261020/settings-input-lab/report.json",
+    "ciLog": "/private/tmp/diplay-ultra-vehicle-settings-ci-20261020.log",
+    "installedHashVerified": true,
+    "bootCount": 2795
+  },
+  "currentInstallation": {
+    "date": "2026-10-21",
+    "package": "com.shihab.diplay.hudtest",
+    "androidUser": 10,
+    "apk": ".private/c11/ultra-20261020/DiPlay-Ultra-focus-recovery-dev-20261021.apk",
+    "sha256": "14450bee4fb031f6fff1a33dc9ddce0235d60861f96ccbfb5d1726851472f267",
+    "stagedHashVerified": true,
+    "uninstallWithoutKeepData": "Success",
+    "install": "Success",
+    "installedPath": "/data/app/~~Iw3WYcP9X3X4UpG4uRT9xA==/com.shihab.diplay.hudtest-nZAO_7dewn1y7fgTMDkXZg==/base.apk",
+    "installedHashVerified": true,
+    "restoredConfiguration": false,
+    "restoredClusterRoute": false,
+    "launched": false,
+    "processAbsentVerified": true,
+    "physicalStabilityValidated": false
+  },
+  "stabilityPriority": {
+    "ownerFeedback": [
+      "conexión se pierde al salir de foco o abrir cámaras",
+      "reconexión queda negra hasta cerrar completamente",
+      "opciones repetidas; ubicación aún sin confirmar",
+      "Apple Maps muestra indicaciones y mapa simplificado en cuadro, mejor que Google Maps"
+    ],
+    "installationGate": "No instalar otra candidata antes de corregir y validar los problemas de estabilidad.",
+    "localCorrections": [
+      "separar monitor de estado y publicación Canvas",
+      "tolerar escena aún no creada sin cerrar VM",
+      "rearmar watchdog para siguiente activación visible",
+      "tratar invalidación/resize transitorio del Canvas como frame no presentado, con reintento acotado por watchdog"
+    ],
+    "physicalRecoveryValidated": false
+  },
+  "cleanReinstall": {
+    "date": "2026-10-21",
+    "package": "com.shihab.diplay.hudtest",
+    "androidUser": 10,
+    "apk": ".private/c11/ultra-20261020/DiPlay-Ultra-focus-recovery-dev-20261021.apk",
+    "sha256": "14450bee4fb031f6fff1a33dc9ddce0235d60861f96ccbfb5d1726851472f267",
+    "stagedHashVerified": true,
+    "uninstallWithoutKeepData": "Success",
+    "install": "Success",
+    "installedPath": "/data/app/~~Iw3WYcP9X3X4UpG4uRT9xA==/com.shihab.diplay.hudtest-nZAO_7dewn1y7fgTMDkXZg==/base.apk",
+    "installedHashVerified": true,
+    "restoredConfiguration": false,
+    "restoredClusterRoute": false,
+    "launched": false,
+    "processAbsentVerified": true,
+    "physicalStabilityValidated": false
+  },
+  "preparedStabilityRecovery": {
+    "date": "2026-10-21",
+    "apk": ".private/c11/ultra-20261020/DiPlay-Ultra-focus-recovery-dev-20261021.apk",
+    "sha256": "14450bee4fb031f6fff1a33dc9ddce0235d60861f96ccbfb5d1726851472f267",
+    "installed": true,
+    "ci": "BUILD SUCCESSFUL in 3m",
+    "junit": {
+      "tests": 3581,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "python": {
+      "settingsInput": 6,
+      "centerLayout": 4,
+      "packaging": 12,
+      "capture": 37,
+      "tpms": 7,
+      "evAssistant": 60
+    },
+    "transparentHeader": false,
+    "publicTreeCheck": "passed",
+    "diffCheck": "passed",
+    "physicalCameraRecoveryVerified": false,
+    "physicalReconnectBlackScreenVerifiedFixed": false,
+    "installationGate": "El propietario autorizó expresamente borrar la anterior e instalar esta candidata; completado, pendiente validación física."
+  },
+  "preparedVehiclePanelTouch": {
+    "date": "2026-10-21",
+    "apk": ".private/c11/ultra-20261020/DiPlay-Ultra-vehicle-panel-touch-dev-20261021.apk",
+    "sha256": "bc964a64c156414eb7490435c4a655b01d6a8af7423b25d7fe44a306ca9f4151",
+    "installed": false,
+    "ci": "BUILD SUCCESSFUL in 23m 22s",
+    "ciLog": "/private/tmp/diplay-ultra-vehicle-touch-ci-20261021.log",
+    "junit": {
+      "tests": 3599,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "python": {
+      "settings": 6,
+      "center": 4,
+      "packaging": 12,
+      "capture": 37,
+      "tpms": 7,
+      "ev": 60
+    },
+    "installedBaselineUnchanged": "14450bee4fb031f6fff1a33dc9ddce0235d60861f96ccbfb5d1726851472f267",
+    "physicalVehicleIconCorrelation": false,
+    "physicalPanelValidated": false,
+    "physicalStabilityValidated": false,
+    "vehicleWritesAdded": false,
+    "radioEnabled": false,
+    "carAccess": false
+  }
+}

@@ -98,7 +98,15 @@ data class AirPlayConfig(
      * default stream (#148, #341). When set, 8 and 16 kHz are not offered for default and alert audio.
      */
     val speechWithout8And16Khz: Boolean = false,
-)
+    /** Experimental verified vehicle services; climate additionally requires an injected, capable backend. */
+    val vehicleStateProtocol: Boolean = false,
+    /** Diagnostic panel/UI Sync handshake only; independent of vehicle data and rendering. */
+    val ultraHandshake: Boolean = false,
+    /** Resource and logical displays must be configured together for a themed handshake probe. */
+    val ultraThemeBinding: UltraThemeBinding? = null,
+) {
+    init { require(!ultraHandshake || ultraThemeBinding?.matches(this) != false) }
+}
 
 /** The offer, SETUP and controls must all honor the user's audio-output setting. */
 internal val AirPlayConfig.bufferedAudioOutputEnabled: Boolean

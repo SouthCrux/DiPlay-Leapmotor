@@ -3,6 +3,7 @@ package com.shilapi.xcertplay
 import android.content.Context
 import com.shilapi.xcertplay.airplay.AirPlayInfoPlist
 import com.shilapi.xcertplay.airplay.AirPlayViewArea
+import com.shilapi.xcertplay.airplay.AirPlayDisplayConfig
 import kotlin.math.abs
 import kotlin.math.ln
 
@@ -30,6 +31,10 @@ class CarPlayViewAreas private constructor(
     /** The area CarPlay uses now; shared by the session's host and its settings. */
     @Volatile var current: Int = initial
         private set
+
+    /** A resource binding can replace the canvas and remove the pending ordinary view areas. */
+    fun matchingDeclaration(display: AirPlayDisplayConfig): CarPlayViewAreas? =
+        takeIf { areas == display.viewAreas }
 
     /** True when the canvas holds both a landscape and a portrait screen. */
     val turnsWithScreen: Boolean = slots.any { it.portrait } && slots.any { !it.portrait }

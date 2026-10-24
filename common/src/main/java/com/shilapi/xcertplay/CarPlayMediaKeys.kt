@@ -65,6 +65,7 @@ internal object CarPlayMediaKeys {
     private var transientFocusInterrupted = false
     private var appContext: Context? = null
     private var mediaAudioActive = false
+    private var nativeBluetoothControls = false
     private var nowPlaying = CarPlayNowPlaying()
     private var elapsedUpdatedAt = 0L
     private var artwork: Bitmap? = null
@@ -79,7 +80,8 @@ internal object CarPlayMediaKeys {
         }
         appContext = context.applicationContext
         controller = next
-        GeelyWheelKeys.start(context)
+        nativeBluetoothControls = AirPlayPersistence.loadCarBluetoothAudio(context)
+        if (nativeBluetoothControls) GeelyWheelKeys.stop() else GeelyWheelKeys.start(context)
         com.shilapi.xcertplay.media.AmbientMusicController.claimPlaybackOwner(next)
         next.playbackListener = { playing ->
             com.shilapi.xcertplay.media.AmbientMusicController.phonePlaybackChanged(next, playing)
@@ -126,6 +128,12 @@ internal object CarPlayMediaKeys {
                 if (controller !== expected) return@synchronized
                 // Resolve retained state at delivery: a queued callback cannot roll a replay back.
                 val update = expected.nowPlayingSnapshot()
+                // Retain wheel controls for paused CarPlay audio. Native Bluetooth audio keeps
+                // its own media session and AVRCP controls; metadata observation must not claim them.
+                appContext?.let { context ->
+                    if (!nativeBluetoothControls && session == null && com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(context) &&
+                        (update.playing || !update.title.isNullOrBlank())) start(context)
+                }
                 val previousArtwork = artwork
                 if (albumTrackChanged(nowPlaying, update)) {
                     val previousId = nowPlaying.artworkTransferId
@@ -283,6 +291,7 @@ internal object CarPlayMediaKeys {
     }
 
     private fun start(context: Context) {
+        if (nativeBluetoothControls) return
         val expectedController = controller ?: return
         val focusDisabled = AirPlayPersistence.loadDisableMediaKeyAudioFocus(context)
         transientFocusInterrupted = false
@@ -416,10 +425,14 @@ internal object CarPlayMediaKeys {
             WheelKeyLog.note("media key $source -> car video player $index")
             return
         }
-        val sent = synchronized(this) { controller }?.sendMediaButton(index) ?: false
+        val target = synchronized(this) { controller.takeUnless { nativeBluetoothControls } }
+        val sent = target?.sendMediaButton(index) ?: false
         Log.i(TAG, "media key $source -> CarPlay $index sent=$sent")
         WheelKeyLog.note("media key $source -> CarPlay $index sent=$sent")
     }
+
+    /** Frozen for the connection; a pending Settings change must not reroute a running session. */
+    @Synchronized internal fun nativeBluetoothOwnsControls(): Boolean = controller != null && nativeBluetoothControls
 
     /** A steering-wheel media key captured outside the Android key stream (Geely/Lynk). */
     internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")

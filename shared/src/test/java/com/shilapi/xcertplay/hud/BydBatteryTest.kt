@@ -48,12 +48,12 @@ class BydBatteryTest {
         val reading = BydBatteryReading(percent = 25.0, rangeKm = 150, remainingKwh = 25.1, charging = false, protocol = BydBatteryProtocol.CANFD)
 
         val above = BydBattery.snapshot(reading, lowPercent = 20, fullKwh = null)
-        assertFalse(above.rangeWarning)
+        assertEquals(false, above.rangeWarning)
         assertEquals(25_100L, above.currentChargeWh)
         assertEquals(100_400L, above.maxChargeWh)
         assertEquals(600, above.maxRangeKm)
 
-        assertTrue(BydBattery.snapshot(reading, lowPercent = 25, fullKwh = null).rangeWarning)
+        assertEquals(true, BydBattery.snapshot(reading, lowPercent = 25, fullKwh = null).rangeWarning)
     }
 
     @Test

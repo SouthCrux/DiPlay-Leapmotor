@@ -8,3 +8,7 @@
 -keep class com.shilapi.xcertplay.transport.IphoneUsbGrantTool {
     public static void main(java.lang.String[]);
 }
+# Names and fields are the ABI of the optional installed C11 JNI library.
+-keep class com.leapmotor.someip.jni.** { *; }
+# Stable JNI names for the optional source-built script VM.
+-keep class com.shilapi.xcertplay.airplay.UltraNativeBindings { *; }

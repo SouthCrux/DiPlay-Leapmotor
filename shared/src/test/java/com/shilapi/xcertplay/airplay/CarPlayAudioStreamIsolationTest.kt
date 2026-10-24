@@ -55,6 +55,30 @@ class CarPlayAudioStreamIsolationTest {
         }
     }
 
+    @Test fun feedbackAndRetirementDoNotMixDifferentAirPlaySessions() {
+        val old = session()
+        val current = session()
+        val engine = CarPlayMediaEngine(object : MediaSink {})
+        fun feedbackTypes(session: AirPlaySession): List<Int> =
+            ((engine.onFeedback(session)?.get("streams") as? List<*>) ?: emptyList<Any>())
+                .map { ((it as Map<*, *>)["type"] as Number).toInt() }
+        try {
+            assertNotNull(engine.onAudio(old, 100, setup("media")))
+            assertNotNull(engine.onAudio(current, 102, setup("media")))
+            assertEquals(listOf(100), feedbackTypes(old))
+            assertEquals(listOf(102), feedbackTypes(current))
+            val currentReceiver = streams(engine)[CarPlayMediaEngine.StreamKey(current, 102, "media")]
+            engine.onSessionClosed(old)
+            assertNull(engine.onFeedback(old))
+            assertEquals(listOf(102), feedbackTypes(current))
+            assertSame(currentReceiver, streams(engine)[CarPlayMediaEngine.StreamKey(current, 102, "media")])
+        } finally {
+            engine.onSessionClosed(old)
+            engine.onSessionClosed(current)
+            old.close(); current.close()
+        }
+    }
+
     private fun setup(audioType: String): Map<String, Any?> = mapOf(
         "audioType" to audioType,
         "audioFormat" to 0x8000L,

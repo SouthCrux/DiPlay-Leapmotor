@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vehicle_field_exterior_reported">Outside (reported)</string>
+    <string name="vehicle_reading_received_minutes">received %1$s min ago</string>
+    <string name="vehicle_field_outside_short">Outside</string>
+    <string name="c11_sidebar_battery">Battery</string>
+    <string name="c11_sidebar_tyres">Tyres</string>
+    <string name="c11_sidebar_no_data">No data</string>
+    <string name="c11_sidebar_range_km">%1$s km</string>
+    <string name="c11_sidebar_range_description">Estimated range: %1$s</string>
+    <string name="c11_sidebar_tyres_front">Front (kPa)</string>
+    <string name="c11_sidebar_tyres_rear">Rear (kPa)</string>
+    <string name="c11_sidebar_tyres_description">Front left: %1$s kPa; front right: %2$s kPa; rear left: %3$s kPa; rear right: %4$s kPa</string>
+    <string name="c11_sidebar_tyre_temperatures_description">Tyre temperatures: front left %1$s °C; front right %2$s °C; rear left %3$s °C; rear right %4$s °C</string>
+    <string name="settings_c11_update_channel">C11 development build. Updates are provided as C11 APKs; official DiPlay APKs do not include this integration.</string>
+    <string name="c11_sidebar_trip_consumption">Trip consumption\n%1$s kWh/100 km</string>
+</resources>

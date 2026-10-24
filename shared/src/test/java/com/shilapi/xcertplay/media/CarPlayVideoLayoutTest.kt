@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CarPlayVideoLayoutTest {
+    @Test fun fullWindowCanvasLeavesVehicleHeaderAndTouchUsesTheSameBounds() {
+        val layout = CarPlayVideoLayout.fitBelowHeader(2560, 1176, 2560, 1176, 96)
+        assertEquals(96f, layout.top, 0.001f)
+        assertEquals(2560f / 1176, layout.width / layout.height, 0.0001f)
+        assertFalse(layout.contains(1280f, 48f))
+        assertTrue(layout.contains(1280f, 600f))
+        assertTrue(layout.top + layout.height <= 1176)
+        val narrow = CarPlayVideoLayout.fitBelowHeader(2560, 1176, 320, 240, 192)
+        assertTrue(narrow.top >= 80)
+        assertTrue(narrow.top + narrow.height <= 240)
+    }
     @Test fun sameAspectRatioFillsTheWindow() {
         assertEquals(CarPlayVideoLayout(0f, 0f, 960f, 495f), CarPlayVideoLayout.fit(1920, 990, 960, 495))
     }

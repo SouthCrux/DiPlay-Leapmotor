@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.hud
 
 import android.content.Context
 import com.shilapi.xcertplay.transport.EvChargingConnectors
+import com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy
 
 /**
  * One user switch for BYD navigation output. On the tested car the windshield HUD mirrors what the
@@ -199,7 +200,8 @@ object BydOutputSettings {
     private fun supportedInSelectedMode(
         context: Context,
         supported: (BydVehicleCapabilities) -> Boolean,
-    ): Boolean = !legacyVehicleProbe(context) || BydVehicleFieldStore.load(context)?.let(supported) == true
+    ): Boolean = VehicleIntegrationPolicy.allowsByd(context) &&
+        (!legacyVehicleProbe(context) || BydVehicleFieldStore.load(context)?.let(supported) == true)
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

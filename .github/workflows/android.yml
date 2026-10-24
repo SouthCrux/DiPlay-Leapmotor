@@ -1,7 +1,7 @@
 name: Android checks
 on:
   push:
-    branches: [main]
+    branches: [main, leapmotor/c11-integration, 'leapmotor/**']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -14,6 +14,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Reject credential files in public source
         run: python3 scripts/check_public_tree.py
+      - name: Test LeapMoto planning and API contracts offline
+        run: python3 -m unittest discover -s tools/ev_assistant -p 'test_*.py'
+      - name: Test filtered vehicle diagnostics offline
+        run: |
+          python3 -m unittest discover -s tools/carplay -p 'test_capture_events.py'
+          python3 -m unittest discover -s tools/carplay -p 'test_tpms_evidence.py'
+          python3 -m unittest discover -s tools/carplay -p 'test_module_evidence.py'
+          python3 -m unittest discover -s tools/carplay -p 'test_camera_frame.py'
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -23,7 +31,7 @@ jobs:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests, lint and source-only debug build
-        run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --stacktrace
+        run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug :c11diagnostics:testDebugUnitTest :c11diagnostics:lintDebug :c11diagnostics:assembleDebug --stacktrace
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -37,3 +45,4 @@ jobs:
             samples/home/build/reports/tests/
             samples/home/build/reports/lint-results-debug.html
             samples/maphost/build/reports/lint-results-debug.html
+            tools/c11diagnostics/build/reports/

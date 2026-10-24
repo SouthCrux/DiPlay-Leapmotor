@@ -92,6 +92,70 @@ class VideoOutputThreadTest {
         }
     }
 
+    @Test fun phoneTimestampSurvivesPacedAndUnpacedDecodeOnEitherOutputPath() {
+        for ((dedicated, delay) in listOf(false to 0, true to 0, true to 50)) {
+            val frames = CopyOnWriteArrayList<VideoFrameRelease>()
+            val released = CountDownLatch(1)
+            val sink = AndroidMediaSink(surface = null, vendorLowLatencyDecoder = dedicated, videoPacingDelayMillis = delay,
+                onVideoFrameRelease = { type, frame ->
+                    assertEquals(MAIN, type); frames += frame; released.countDown()
+                })
+            val surface = Surface(SurfaceTexture(0))
+            try {
+                sink.setSurface(MAIN, surface); sink.onVideoConfig(MAIN, avcC)
+                sink.onVideoFrame(MAIN, idr, 1234567890123456L, System.nanoTime())
+                assertTrue("release callback dedicated=$dedicated", released.await(5, TimeUnit.SECONDS))
+                assertEquals(1234567890123456L, frames.single().senderNanos)
+                assertTrue(frames.single().scheduledLocalNanos > 0)
+            } finally {
+                sink.close(); assertTrue(sink.awaitVideoReleased(5_000)); surface.release()
+            }
+        }
+    }
+
+    @Test fun timingObserverFailureDoesNotInterruptVideoDecode() {
+        val released = CountDownLatch(2)
+        val failures = CountDownLatch(2)
+        val sink = AndroidMediaSink(surface = null, vendorLowLatencyDecoder = true,
+            onVideoFrameRelease = { _, _ -> released.countDown(); error("fixture observer failed") })
+        val surface = Surface(SurfaceTexture(0))
+        sink.setVideoDiagnosticHandler(MAIN) { if (it == "video release observer failed") failures.countDown() }
+        try {
+            sink.setSurface(MAIN, surface); sink.onVideoConfig(MAIN, avcC)
+            sink.onVideoFrame(MAIN, idr, 1000000000L, System.nanoTime())
+            sink.onVideoFrame(MAIN, idr, 1016666667L, System.nanoTime())
+            assertTrue(released.await(5, TimeUnit.SECONDS))
+            assertTrue(failures.await(5, TimeUnit.SECONDS))
+            assertTrue(mainDecoder(sink).field<Thread>("thread").isAlive)
+        } finally {
+            sink.close(); assertTrue(sink.awaitVideoReleased(5_000)); surface.release()
+        }
+    }
+
+    @Test fun compositionUsesAUniqueBufferTokenOnlyForItsExactDestination() {
+        val surface = Surface(SurfaceTexture(0))
+        val origins = VideoSurfaceOrigins()
+        val releases = CopyOnWriteArrayList<VideoFrameRelease>()
+        val ready = CountDownLatch(1)
+        val target = object : VideoCompositionTarget {
+            override val surface = surface
+            override fun queueFrame(senderNanos: Long) = origins.queue(senderNanos)
+            override fun discardFrame(token: Long) = origins.discard(token)
+        }
+        val sink = AndroidMediaSink(videoCompositionTargets = mapOf(MAIN to target),
+            onVideoFrameRelease = { _, frame -> releases += frame; ready.countDown() })
+        try {
+            sink.setSurface(MAIN, surface); sink.onVideoConfig(MAIN, avcC)
+            sink.onVideoFrame(MAIN, idr, 3_000_000_000L, System.nanoTime())
+            assertTrue(ready.await(5, TimeUnit.SECONDS))
+            val token = releases.single().surfaceTimestampNanos!!
+            assertEquals(3_000_000_000L, origins.latched(token))
+            assertNull(origins.latched(token))
+        } finally {
+            sink.close(); assertTrue(sink.awaitVideoReleased(5_000)); surface.release(); origins.close()
+        }
+    }
+
     private fun mainDecoder(sink: AndroidMediaSink): Any =
         checkNotNull(sink.field<Map<Int, Any>>("videoDecoders")[MAIN]) { "no main decoder" }
 

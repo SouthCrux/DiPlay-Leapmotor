@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import com.shilapi.xcertplay.media.CarPlayVideoLayout
+import com.shilapi.xcertplay.airplay.AirPlayDisplayConfig
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,6 +23,20 @@ class CarPlayHostVideoSurfaceTest {
     private class AttachedTexture(activity: CarPlayHostActivity, private val accelerated: Boolean) : TextureView(activity) {
         override fun isAttachedToWindow() = true
         override fun isHardwareAccelerated() = accelerated
+    }
+
+    @Test fun referenceCanvasDoesNotShrinkInsideUndeclaredOrdinaryViewAreas() {
+        val activity = Robolectric.buildActivity(CarPlayHostActivity::class.java).get()
+        val pending = CarPlayViewAreas.build(2560, 1176, CarPlayDock.BOTTOM, splitWindow = null)!!
+        val reference = AirPlayDisplayConfig(1920, 720)
+        set(activity, "sessionDisplay", CarPlaySessionDisplay(1920, 720, Surface.ROTATION_0,
+            false, false, 2560, 1176, viewAreas = pending.matchingDeclaration(reference)))
+        val content = activity.javaClass.getDeclaredMethod("contentRect", Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType).apply { isAccessible = true }.invoke(activity, 2560, 1176) as CarPlayVideoLayout
+        assertEquals(2560f, content.width, 0.01f)
+        assertEquals(960f, content.height, 0.01f)
+        assertEquals(0f, content.left, 0.01f)
+        assertEquals(108f, content.top, 0.01f)
     }
 
     @Test fun acceleratedWindowKeepsItsTextureAndTheOverlayOrder() {

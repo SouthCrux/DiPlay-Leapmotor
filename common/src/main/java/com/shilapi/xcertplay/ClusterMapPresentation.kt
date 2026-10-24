@@ -41,19 +41,22 @@ internal class ClusterMapPresentation(
     display: Display,
     private val theme: DiLink51ClusterLayout.Theme = DiLink51ClusterLayout.theme(context),
     private val onSurface: (Surface?) -> Unit,
-) : Presentation(context, display) {
+) : Presentation(context, display), ClusterMapWindow {
     // The placeholder until the map arrives: a small spinner.
     private var waitingLabel: View? = null
     private var turnCardView: ClusterTurnCardView? = null
     private var videoView: View? = null
     private var streamActive = false
-    var outputSurface: Surface? = null
+    override var outputSurface: Surface? = null
         private set
-    var mapVisible = true
+    override var mapVisible = true
         private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        check(!com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(context)) {
+            "C11 requires its bounded overlay, not a presentation display"
+        }
         val size = sizeOf(display)
         val adaptive = DiLink51ClusterLayout.supported()
         val plan = if (adaptive) DiLink51ClusterLayout.plan(size.x, size.y, theme) else null
@@ -155,7 +158,7 @@ internal class ClusterMapPresentation(
      * Cross-fades the waiting placeholder over the live map. TextureView can also fade the
      * video; legacy SurfaceView stays visible under the placeholder to preserve its surface.
      */
-    fun setStreamActive(active: Boolean) {
+    override fun setStreamActive(active: Boolean) {
         if (streamActive == active) return
         // Update before cancelling: a cancelled fade must not hide the newly restored label.
         streamActive = active
@@ -173,7 +176,7 @@ internal class ClusterMapPresentation(
     }
 
     /** Window alpha hides the pixels without destroying the TextureView/decoder surface. */
-    fun setMapVisible(visible: Boolean) {
+    override fun setMapVisible(visible: Boolean) {
         mapVisible = visible
         window?.let { window ->
             val alpha = if (visible) 1f else 0f
@@ -181,27 +184,32 @@ internal class ClusterMapPresentation(
         }
     }
 
-    fun setTurnCardOverlay(xPercent: Int, yPercent: Int, sizePercent: Int) {
+    override fun setTurnCardOverlay(xPercent: Int, yPercent: Int, sizePercent: Int) {
         turnCardView?.setLayout(xPercent, yPercent, sizePercent)
     }
 
-    fun setTurnCardNightMode(night: Boolean) {
+    override fun setTurnCardNightMode(night: Boolean) {
         turnCardView?.setNightMode(night)
     }
 
-    fun setTurnCardOpacity(percent: Int) {
+    override fun setTurnCardOpacity(percent: Int) {
         turnCardView?.setOpacity(percent)
     }
 
-    fun setTurnCardGuidance(guidance: ClusterTurnGuidance?) {
+    override fun setTurnCardGuidance(guidance: ClusterTurnGuidance?) {
         turnCardView?.setGuidance(guidance)
     }
+
+    override fun showing(): Boolean = isShowing
 
     companion object {
         const val TAG = "DiPlay-Cluster"
 
         /** Keep the 5/5.1 selection order, then try the measured DiLink 4 projection display. */
         fun findDisplay(context: Context, theme: DiLink51ClusterLayout.Theme = DiLink51ClusterLayout.theme(context)): Display? {
+            if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(context)) {
+                return LeapmotorClusterDisplay.findDisplay(context)
+            }
             val displays = context.getSystemService(DisplayManager::class.java)
                 ?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION) ?: return null
             val name = DiLink51ClusterLayout.displayName(
@@ -237,6 +245,13 @@ internal class ClusterMapPresentation(
             val presentations = context.getSystemService(DisplayManager::class.java)
                 ?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).orEmpty()
             appendLine("presentationDisplayIds=${presentations.joinToString { it.displayId.toString() }}")
+            if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(context)) {
+                appendLine("c11Tile=1200,0,720,720 firmwareMatches=${android.os.Build.FINGERPRINT == LeapmotorClusterDisplay.FINGERPRINT}")
+                val candidates = context.getSystemService(DisplayManager::class.java)?.displays.orEmpty()
+                appendLine("c11BootRouteCandidates=" + candidates.joinToString {
+                    "${it.displayId}:mode=${it.mode.modeId}:accepted=${LeapmotorClusterDisplay.accepts(context, it)}"
+                })
+            }
             val selected = findDisplay(context)
             append("selectedCluster=${selected?.let { "${it.displayId}:${it.name}" } ?: "none"}")
         }

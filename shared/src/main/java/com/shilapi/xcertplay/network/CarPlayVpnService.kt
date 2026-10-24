@@ -87,7 +87,7 @@ class CarPlayVpnService : VpnService() {
     ): AttachResult {
         if (active.get()) {
             Log.i(TAG, "replacing stale NCM/VPN attachment")
-            releaseLocked()
+            releaseLocked("wired_replacement")
         }
         active.set(true)
         val generation = ++attachGeneration
@@ -123,7 +123,7 @@ class CarPlayVpnService : VpnService() {
             )
             AttachResult.Started
         } catch (error: Exception) {
-            releaseLocked()
+            releaseLocked("wired_attach_failed")
             lastAttachFailure = attachFailure(error)
             AttachResult.Failed(error.message ?: error.javaClass.simpleName)
         }
@@ -147,7 +147,7 @@ class CarPlayVpnService : VpnService() {
     ): AttachResult {
         if (active.get()) {
             Log.i(TAG, "replacing stale local-only Wi-Fi attachment")
-            releaseLocked()
+            releaseLocked("wireless_replacement")
         }
         active.set(true)
         val generation = ++attachGeneration
@@ -159,7 +159,7 @@ class CarPlayVpnService : VpnService() {
             )
             AttachResult.Started
         } catch (error: Exception) {
-            releaseLocked()
+            releaseLocked("wireless_attach_failed")
             lastAttachFailure = attachFailure(error)
             AttachResult.Failed(error.message ?: error.javaClass.simpleName)
         }
@@ -168,12 +168,12 @@ class CarPlayVpnService : VpnService() {
     /** Releases the active AirPlay listener and whichever VPN/NCM transport resources are active. */
     @Synchronized
     fun detach() {
-        releaseLocked()
+        releaseLocked("detach")
     }
 
     @Synchronized
     fun detachWireless(owner: AirPlayListenerIdentity) {
-        if (attachment?.listenerIdentity === owner) releaseLocked()
+        if (attachment?.listenerIdentity === owner) releaseLocked("wireless_owner_detach")
     }
 
     fun isAttached(): Boolean = active.get() && attachment != null
@@ -182,8 +182,13 @@ class CarPlayVpnService : VpnService() {
     fun boundPort(): Int? = attachment?.config?.port
 
     override fun onDestroy() {
-        detach()
+        synchronized(this) { releaseLocked("service_destroyed") }
         super.onDestroy()
+    }
+
+    override fun onRevoke() {
+        Log.i(TAG, "airplay attachment VPN revoked")
+        super.onRevoke()
     }
 
     /**
@@ -347,12 +352,12 @@ class CarPlayVpnService : VpnService() {
         error: Throwable,
     ) {
         val message = error.message ?: error.javaClass.simpleName
-        Log.e(TAG, "CarPlay transport stopped: $message", error)
         Thread(
             {
                 val releasedGeneration = synchronized(this) {
                     if (generation != attachGeneration) return@Thread
-                    releaseLocked()
+                    Log.e(TAG, "CarPlay transport stopped generation=$generation: $message", error)
+                    releaseLocked("transport_error")
                     attachGeneration
                 }
                 listener.onTransportError(message)
@@ -368,7 +373,9 @@ class CarPlayVpnService : VpnService() {
     }
 
     /** Caller must hold this service's monitor. Closes only resources active for this attachment. */
-    private fun releaseLocked() {
+    private fun releaseLocked(reason: String) {
+        Log.i(TAG, "airplay attachment release reason=$reason generation=$attachGeneration active=${active.get()} " +
+            "listeners=${(if (serverSocket == null) 0 else 1) + additionalServers.size}")
         attachGeneration += 1
         active.set(false)
         attachment = null

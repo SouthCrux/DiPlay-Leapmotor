@@ -1,0 +1,149 @@
+{"event": "capture_started", "simulated": true}
+{"event": "process_observed", "pid": 1}
+{"channel": "AC_CONNECTION", "deviceTime": "10-23 12:00:00.000", "event": "c11_charging_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CHARGE_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_charging_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "DC_CONNECTION", "deviceTime": "10-23 12:00:00.000", "event": "c11_charging_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "DRIVER_DOOR", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "PASSENGER_DOOR", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_DOOR", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_DOOR", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "TAILGATE_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_LEFT_WINDOW_POSITION", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_RIGHT_WINDOW_POSITION", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "GLASS_ROOF_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_WINDOW_POSITION", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_WINDOW_POSITION", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "SUNSHADE_POSITION", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "DRIVER_SEAT_HEAT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "DRIVER_SEAT_VENT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "PASSENGER_SEAT_HEAT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "PASSENGER_SEAT_VENT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_SEAT_HEAT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_SEAT_VENT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_SEAT_HEAT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_SEAT_VENT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HIGH_BEAM_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "LEFT_TURN_SWITCH", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "LOW_BEAM_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_FOG_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "RIGHT_TURN_SWITCH", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CURRENT_TRIP_DISTANCE", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CURRENT_TRIP_CONSUMPTION", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "RECHARGE_TRIP_DISTANCE", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "RECHARGE_TRIP_CONSUMPTION", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "TRIP_A_DISTANCE", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "TRIP_A_CONSUMPTION", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "GEAR", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "DRIVING", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "READY_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "DRIVING", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "VEHICLE_SPEED", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_PRIMARY_BELT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WARNINGS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_SECONDARY_BELT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WARNINGS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_BELT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WARNINGS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_MIDDLE_BELT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WARNINGS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_BELT", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "WARNINGS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_AC_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_AIR_DISTRIBUTION", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_AUTO_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_FRONT_DEFROST", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_POWER_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_REAR_DEFROST", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CHARGE_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_charging_observation", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "DRIVER_DOOR", "deviceTime": "10-23 12:00:01.000", "event": "c11_door_observation", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_LEFT_WINDOW_POSITION", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "rawValue": 25, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "DRIVER_SEAT_HEAT", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 2, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HIGH_BEAM_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CURRENT_TRIP_CONSUMPTION", "deviceTime": "10-23 12:00:01.000", "event": "c11_measurement_observation", "rawValue": 2.125, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "VEHICLE_SPEED", "deviceTime": "10-23 12:00:01.000", "event": "c11_measurement_observation", "rawValue": 3.5, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_PRIMARY_BELT", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "WARNINGS", "rawValue": 2, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_POWER_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"command": "configRequest", "event": "vehicle_state_request", "lane": "HIGH"}
+{"event": "vehicle_state_rejected", "lane": "HIGH", "reason": "unsupported-command"}
+{"channel": "CHARGE_TIME_REMAINING", "deviceTime": "10-23 12:00:00.000", "event": "c11_charging_observation", "rawValue": 90, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CHARGE_TIME_REMAINING", "deviceTime": "10-23 12:00:01.000", "event": "c11_charging_observation", "rawValue": 80, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CHARGE_TARGET_PERCENT", "deviceTime": "10-23 12:00:00.000", "event": "c11_charging_observation", "rawValue": 80, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CHARGE_TARGET_PERCENT", "deviceTime": "10-23 12:00:01.000", "event": "c11_charging_observation", "rawValue": 90, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_RECIRCULATION_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_RECIRCULATION_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_RECIRCULATION_AUTO_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HVAC_RECIRCULATION_AUTO_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "CLIMATE", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HOOD_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "HOOD_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_door_observation", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "VEHICLE_LOCK_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "VEHICLE_LOCK_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_door_observation", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_CHILD_LOCK_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_CHILD_LOCK_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_door_observation", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_CHILD_LOCK_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_door_observation", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_CHILD_LOCK_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_door_observation", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_READING_LIGHT_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_LEFT_READING_LIGHT_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_READING_LIGHT_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "REAR_RIGHT_READING_LIGHT_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "LIGHTS", "rawValue": 1, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_PRIMARY_OCCUPANCY_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_PRIMARY_OCCUPANCY_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 2, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_SECONDARY_OCCUPANCY_STATUS", "deviceTime": "10-23 12:00:00.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "FRONT_SECONDARY_OCCUPANCY_STATUS", "deviceTime": "10-23 12:00:01.000", "event": "c11_subsystem_observation", "module": "SEATS", "rawValue": 2, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"event": "capture_stopped"}
+{"channel": "CURRENT_TRIP_DURATION", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "CURRENT_TRIP_DURATION", "deviceTime": "10-23 12:00:01.000", "event": "c11_measurement_observation", "rawValue": 60.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "RECHARGE_TRIP_DURATION", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "RECHARGE_TRIP_DURATION", "deviceTime": "10-23 12:00:01.000", "event": "c11_measurement_observation", "rawValue": 60.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "TRIP_A_DURATION", "deviceTime": "10-23 12:00:00.000", "event": "c11_measurement_observation", "rawValue": 0.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"channel": "TRIP_A_DURATION", "deviceTime": "10-23 12:00:01.000", "event": "c11_measurement_observation", "rawValue": 60.0, "readingState": "OBSERVED_UNVERIFIED", "receivedAgeMs": 0}
+{"event": "c11_subsystem_observation", "module": "LIGHTS", "channel": "MAIN_LAMP_FEEDBACK", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "LIGHTS", "channel": "MAIN_LAMP_FEEDBACK", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 7, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "DRIVING", "channel": "BRAKE_CONTROLLER_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "DRIVING", "channel": "BRAKE_CONTROLLER_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 3, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "channel": "LEFT_MIRROR_HEAT_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "channel": "LEFT_MIRROR_HEAT_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 101, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "channel": "RIGHT_MIRROR_HEAT_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WINDOWS_ROOF", "channel": "RIGHT_MIRROR_HEAT_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 101, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_door_observation", "channel": "TAILGATE_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_door_observation", "channel": "TAILGATE_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 50, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_door_observation", "channel": "POWER_TAILGATE_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_door_observation", "channel": "POWER_TAILGATE_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 4, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "ENERGY", "channel": "CLTC_RANGE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "ENERGY", "channel": "CLTC_RANGE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 250, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "ENERGY", "channel": "WLTC_RANGE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "ENERGY", "channel": "WLTC_RANGE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 220, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "ENERGY", "channel": "RANGE_STANDARD", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "ENERGY", "channel": "RANGE_STANDARD", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 3, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_charging_observation", "channel": "AC_PLUG_LOCK_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_charging_observation", "channel": "AC_PLUG_LOCK_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 2, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_charging_observation", "channel": "ONBOARD_CHARGER_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_charging_observation", "channel": "ONBOARD_CHARGER_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 3, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "SEATS", "channel": "FRONT_LEFT_SEAT_SLIDE_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "SEATS", "channel": "FRONT_LEFT_SEAT_SLIDE_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 50, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "SEATS", "channel": "FRONT_LEFT_SEAT_BASE_FRONT_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "SEATS", "channel": "FRONT_LEFT_SEAT_BASE_FRONT_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 50, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "SEATS", "channel": "FRONT_LEFT_SEAT_BACKREST_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "SEATS", "channel": "FRONT_LEFT_SEAT_BACKREST_POSITION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 50, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "CABIN_PM25_LEVEL", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "CABIN_PM25_LEVEL", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 6, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "HVAC_AUTO_CLEAR_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "HVAC_AUTO_CLEAR_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 2, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_POWER_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_POWER_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_FAN_LEVEL", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_FAN_LEVEL", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_AIR_DISTRIBUTION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_AIR_DISTRIBUTION", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_AUTO_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "REAR_HVAC_AUTO_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_measurement_observation", "channel": "REAR_HVAC_DISPLAY_TEMPERATURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 18.0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_measurement_observation", "channel": "REAR_HVAC_DISPLAY_TEMPERATURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 20.5, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "HVAC_SYNC_FEEDBACK", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 2, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "HVAC_SYNC_FEEDBACK", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "HVAC_SMART_CLEAR_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "CLIMATE", "channel": "HVAC_SMART_CLEAR_STATUS", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "FRONT_WIPER_MAINTENANCE_OFF_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "FRONT_WIPER_MAINTENANCE_OFF_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "FRONT_WIPER_MAINTENANCE_ON_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "FRONT_WIPER_MAINTENANCE_ON_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "FRONT_WIPER_START_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "FRONT_WIPER_START_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "REAR_WIPER_MAINTENANCE_ON_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "REAR_WIPER_MAINTENANCE_ON_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "REAR_WIPER_MAINTENANCE_OFF_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "REAR_WIPER_MAINTENANCE_OFF_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "REAR_WIPER_START_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 0, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:00.000"}
+{"event": "c11_subsystem_observation", "module": "WIPERS", "channel": "REAR_WIPER_START_FAILURE", "readingState": "OBSERVED_UNVERIFIED", "rawValue": 1, "receivedAgeMs": 0, "deviceTime": "10-23 12:00:01.000"}

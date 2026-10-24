@@ -1,5 +1,7 @@
 package com.shilapi.xcertplay.orchestration
 
+import com.shilapi.xcertplay.airplay.hasConventionalClusterNavigation
+
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothA2dp
@@ -35,7 +37,8 @@ import com.shilapi.xcertplay.airplay.PairingStore
 import com.shilapi.xcertplay.airplay.VideoInCar
 import com.shilapi.xcertplay.airplay.VideoPlaybackDelivery
 import com.shilapi.xcertplay.hud.BydBluetoothSuspend
-import com.shilapi.xcertplay.hud.BydNavigationOutputs
+import com.shilapi.xcertplay.hud.CarPlayTurnOverlay
+import com.shilapi.xcertplay.vehicle.VehicleNavigationOutput
 import com.shilapi.xcertplay.iap2.session.Iap2Session
 import com.shilapi.xcertplay.mfi.Iap2MfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.MfiAuthenticationClient
@@ -170,14 +173,21 @@ class CarPlayController(
     private val clearPairRecord: () -> Unit = {},
     private val locationProvider: Iap2LocationProvider? = null,
     private val vehicleStatusProvider: com.shilapi.xcertplay.transport.VehicleStatusProvider? = null,
+    private val vehicleNavigationOutput: VehicleNavigationOutput = VehicleNavigationOutput.forContext(context),
+    val referenceCenterHost: com.shilapi.xcertplay.airplay.UltraReferenceCenterHost? = null,
 ) : Closeable {
     init {
         require(!config.locationReportingEnabled || locationProvider != null) {
             "A location provider is required when location reporting is enabled"
         }
         WifiScanPause.restoreIfNeeded(context.applicationContext)
-        BydNavigationOutputs.start(context.applicationContext)
-        BydNavigationOutputs.setClusterStreamControl(::applyClusterUi)
+        vehicleNavigationOutput.start(context.applicationContext)
+        vehicleNavigationOutput.setClusterStreamControl(::applyClusterUi)
+    }
+
+    private fun endNavigationOutput(preserveTurnOverlay: Boolean = false) {
+        CarPlayTurnOverlay.endNow(preserveTurnOverlay)
+        vehicleNavigationOutput.endNow(preserveTurnOverlay)
     }
 
     private enum class Phase { IDLE, MFI, WIRELESS, IPHONE, REENUMERATION, DATAPATHS, CONTROL }
@@ -333,18 +343,26 @@ class CarPlayController(
         }
         override fun onSessionActive(session: AirPlaySession) {
             if (currentCornerMask?.session !== session) currentCornerMask = null
-            val replacement = activeSession !== session
-            if (replacement) {
-                BydNavigationOutputs.start(appContext)
-                BydNavigationOutputs.carPlaySessionStarted()
-                com.shilapi.xcertplay.glance.CarPlayGlance.setConnected(true)
-                // The gear may have changed since /info.
-                if (videoListener != null) {
-                    val delivery = session.setVideoPlaybackAllowed(VideoInCar.allowed)
-                    debugLog("video in car session allowed=${VideoInCar.allowed} delivery=$delivery")
+            val replacement = synchronized(lifecycleLock) {
+                if (closed || session.isClosed) return
+                val changed = activeSession !== session
+                if (changed && videoListener != null) {
+                    videoGate?.invalidate() ?: run { VideoInCar.allowed = false }
                 }
+                activeSession = session
+                if (changed) videoListener?.let { listener ->
+                    listener.onVideoSessionStarted()
+                    val delivery = session.setVideoPlaybackAllowed(false)
+                    debugLog("video in car session allowed=false delivery=$delivery")
+                    listener.onVideoAllowedChanged(false)
+                }
+                changed
             }
-            activeSession = session
+            if (replacement) {
+                vehicleNavigationOutput.start(appContext)
+                vehicleNavigationOutput.carPlaySessionStarted()
+                com.shilapi.xcertplay.glance.CarPlayGlance.setConnected(true)
+            }
             val btPrefs = appContext.getSharedPreferences("xcertplay_airplay", android.content.Context.MODE_PRIVATE)
             if (btPrefs.getBoolean("bt_suspend_during_carplay", false)) {
                 // close() marks [closed], and a closing session marks itself before onSessionEnded
@@ -364,13 +382,21 @@ class CarPlayController(
 
         override fun onSessionEnded(session: AirPlaySession) {
             if (currentCornerMask?.session === session) currentCornerMask = null
-            if (activeSession === session) {
-                activeSession = null
+            val ended = synchronized(lifecycleLock) {
+                if (activeSession !== session) false else {
+                    if (videoListener != null) {
+                        videoGate?.invalidate() ?: run { VideoInCar.allowed = false }
+                    }
+                    activeSession = null
+                    videoListener?.onVideoSessionEnded()
+                    true
+                }
+            }
+            if (ended) {
                 synchronized(albumReplayLock) { initialArtworkReplay = null }
-                BydNavigationOutputs.endNow(preserveTurnOverlay = !closed && config.transport == CarPlayTransport.WIRELESS)
+                endNavigationOutput(preserveTurnOverlay = !closed && config.transport == CarPlayTransport.WIRELESS)
                 BydBluetoothSuspend.resume(appContext, this@CarPlayController) { debugLog(it) }
                 com.shilapi.xcertplay.glance.CarPlayGlance.setConnected(false)
-                videoListener?.onVideoSessionEnded()
                 synchronized(playbackStatus) {
                     val wasPlaying = playbackStatus.playing
                     playbackStatus.clearAll()?.let { it to wasPlaying }
@@ -399,44 +425,52 @@ class CarPlayController(
         // The user tapped the car icon in CarPlay: show the head unit's own menu, like its Home button.
         // The session keeps running in the background, so returning to DiPlay resumes CarPlay.
         override fun onHostUiRequested(session: AirPlaySession) {
-            debugLog("CarPlay requested the car UI; opening the head-unit home screen")
-            runCatching {
-                appContext.startActivity(
-                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }.onFailure { debugLog("Car home screen could not open: ${it.javaClass.simpleName}") }
-            uiListener?.onHostUiRequested(session)
+            synchronized(lifecycleLock) {
+                if (closed || session.isClosed || activeSession !== session) return
+                debugLog("CarPlay requested the car UI; opening the head-unit home screen")
+                runCatching {
+                    appContext.startActivity(
+                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }.onFailure { debugLog("Car home screen could not open: ${it.javaClass.simpleName}") }
+                uiListener?.onHostUiRequested(session)
+            }
         }
 
         override fun onRemoteControlMessage(session: AirPlaySession, streamId: Long, message: Map<String, Any?>) {
-            if (activeSession === session) videoListener?.onVideoMessage(streamId, message)
+            synchronized(lifecycleLock) {
+                if (!closed && activeSession === session) videoListener?.onVideoMessage(streamId, message)
+            }
         }
 
         override fun onVideoPlaybackUiRequested(session: AirPlaySession) {
             debugLog("CarPlay requested the car's video player")
-            if (activeSession === session) videoListener?.onVideoUiRequested()
+            synchronized(lifecycleLock) {
+                if (!closed && activeSession === session) videoListener?.onVideoUiRequested()
+            }
         }
 
         override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {
-            debugLog(
-                "AirPlay command type=$type params=${params.keys.sorted().joinToString(",")}",
-            )
-            if (
-                config.transport == CarPlayTransport.WIRELESS &&
-                !closed &&
-                activeSession === session &&
-                isBluetoothHandoffCommand(type) &&
-                wirelessHandoffRequested.compareAndSet(false, true)
-            ) {
+            synchronized(lifecycleLock) {
+                if (closed || session.isClosed || activeSession !== session) return
                 debugLog(
-                    "wireless CarPlay Bluetooth handoff requested; " +
-                        "waiting for tunnel iAP2 readiness",
+                    "AirPlay command type=$type params=${params.keys.sorted().joinToString(",")}",
                 )
-                armWirelessHandoffWatchdog(wirelessGeneration.get())
-                maybeCompleteWirelessHandoff()
+                if (
+                    config.transport == CarPlayTransport.WIRELESS &&
+                    isBluetoothHandoffCommand(type) &&
+                    wirelessHandoffRequested.compareAndSet(false, true)
+                ) {
+                    debugLog(
+                        "wireless CarPlay Bluetooth handoff requested; " +
+                            "waiting for tunnel iAP2 readiness",
+                    )
+                    armWirelessHandoffWatchdog(wirelessGeneration.get())
+                    maybeCompleteWirelessHandoff()
+                }
+                uiListener?.onCommand(session, type, params)
             }
-            uiListener?.onCommand(session, type, params)
         }
 
         override fun onDebugLog(message: String) {
@@ -456,6 +490,11 @@ class CarPlayController(
     }
 
     fun isClosed(): Boolean = closed
+
+    /** Current live session for background-host adoption; does not replay UI lifecycle callbacks. */
+    fun currentAirPlaySession(): AirPlaySession? = synchronized(lifecycleLock) {
+        activeSession?.takeIf { !closed && !it.isClosed }
+    }
 
     /** Nonblocking identity for wheel controls: only an unclosed phone with an accepted primary stream. */
     fun activeAirPlaySessionToken(): Any? {
@@ -487,6 +526,7 @@ class CarPlayController(
                 onObserved = { parked ->
                     debugLog("video in car gear=${when (parked) { true -> "P"; false -> "not-P"; null -> "unknown" }}")
                 },
+                dispatchLock = lifecycleLock,
             ).also { it.start() }
         }
         if (config.transport == CarPlayTransport.WIRED) {
@@ -571,6 +611,10 @@ class CarPlayController(
     }
 
     /** Immutable stream geometry retained when a new host adopts this background controller. */
+    val ultraThemeProbeActive: Boolean get() = airPlayConfig.ultraHandshake && airPlayConfig.ultraThemeBinding != null
+    val suppressesConventionalCluster: Boolean
+        get() = ultraThemeProbeActive && !airPlayConfig.hasConventionalClusterNavigation
+
     fun configuredClusterSize(): Pair<Int, Int>? = airPlayConfig.cluster?.let { it.widthPixels to it.heightPixels }
 
     /** A visible physical map and its session/stream generation; null for a paused/virtual/turn-card route. */
@@ -615,6 +659,26 @@ class CarPlayController(
         }
     }
 
+    /** Experimental iAP2 App Launch; a sent request does not prove the app or voice UI opened. */
+    fun requestAssistantApp(app: com.shilapi.xcertplay.transport.CarPlayAssistantApp,
+        onSent: (Boolean) -> Unit = {}): Boolean {
+        if (closed) return false
+        val session = activeSession ?: return false
+        return try {
+            touchExecutor.execute {
+                val sent = runCatching {
+                    if (closed || activeSession !== session) return@runCatching false
+                    val channel = if (config.transport == CarPlayTransport.WIRELESS) wirelessTunnelChannel else csm
+                    if (channel == null) return@runCatching false
+                    channel.send(app.launchRequest(), 250)
+                    true
+                }.getOrDefault(false)
+                onSent(sent)
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
     /** Answers the ringing call on the iPhone (telephony Hook Switch), as the wheel's call button does. */
     fun answerCall(): Boolean = sendTelephony(TELEPHONY_HOOK_SWITCH)
 
@@ -652,15 +716,19 @@ class CarPlayController(
             dashboardMapOutputVisible = false
         }
         firstTcpWatchdog?.terminate()
+        (vehicleStatusProvider as? com.shilapi.xcertplay.transport.ManagedVehicleStatusProvider)?.close()
         BydBluetoothSuspend.resume(appContext, this) { debugLog(it) }
         startupTimer.shutdownNow()
         (hotspot as? ManualHotspotManager)?.close()
         val teardownStarted = System.nanoTime()
         connectionDiagnostic("teardown begin transport=${config.transport}")
-        videoGate?.close()
-        BydNavigationOutputs.endNow()
+        synchronized(lifecycleLock) {
+            videoGate?.close()
+            (videoListener as? Closeable)?.let { runCatching { it.close() } }
+        }
+        endNavigationOutput()
         com.shilapi.xcertplay.glance.CarPlayGlance.setConnected(false)
-        BydNavigationOutputs.clearClusterStreamControl(::applyClusterUi)
+        vehicleNavigationOutput.clearClusterStreamControl(::applyClusterUi)
         closeReceivers()
         availabilityPollGeneration.incrementAndGet()
         permissionPollGeneration += 1
@@ -690,6 +758,9 @@ class CarPlayController(
                     wirelessAirPlayEndpoint = null
                     closeBestEffort("location provider") { locationProvider?.close() }
                 } finally {
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        closeBestEffort("Ultra reference host") { referenceCenterHost?.close() }
+                    }
                     executor.shutdownNow()
                     var executorTerminated = false
                     try {
@@ -799,7 +870,8 @@ class CarPlayController(
 
     // HUD (SOME/IP) and cluster (AMap broadcast) keep separate state so one failing cannot stall the other.
     private fun onRouteFrame(frame: com.shilapi.xcertplay.iap2.wire.Iap2Frame) {
-        BydNavigationOutputs.onFrame(frame)
+        CarPlayTurnOverlay.onFrame(frame)
+        vehicleNavigationOutput.onFrame(frame)
         com.shilapi.xcertplay.glance.CarPlayGlance.onFrame(frame)
         synchronized(playbackStatus) {
             val previousPlaying = playbackStatus.playing
@@ -1494,11 +1566,13 @@ class CarPlayController(
                 return
             }
             val wirelessIdentification = Iap2WirelessIdentification(hostBluetoothMac, hotspotInfo.ssid)
-            val bootstrapIdentification = config.identification.forWirelessLink(
+            val themeAsset = airPlayConfig.ultraThemeBinding?.asset?.takeIf { airPlayConfig.ultraHandshake }
+            val themeIdentification = config.identification.copy(themeAssetIdentifier = themeAsset?.identifier)
+            val bootstrapIdentification = themeIdentification.forWirelessLink(
                 Iap2WirelessLinkRole.BLUETOOTH_BOOTSTRAP,
                 wirelessIdentification,
             )
-            val runtimeIdentification = config.identification.forWirelessLink(
+            val runtimeIdentification = themeIdentification.forWirelessLink(
                 Iap2WirelessLinkRole.RUNTIME_TUNNEL,
                 wirelessIdentification,
             )
@@ -1513,7 +1587,9 @@ class CarPlayController(
                 publicKey = identity.publicKeyHex,
                 sourceVersion = airPlayConfig.sourceVersion,
                 accessPointBssid = hotspotInfo.accessPointBssid,
+                themeAsset = themeAsset,
             )
+            if (themeAsset != null) debugLog("ultra handshake: iAP2 catalog theme descriptor configured")
             wirelessRuntimeIdentification = runtimeIdentification
             wirelessAirPlayEndpoint = endpoint
             debugLog(
@@ -2266,12 +2342,14 @@ class CarPlayController(
 
             val mfi = mfiSession?.client
                 ?: throw IphoneUsbException.DeviceUnavailable("MFi coprocessor client is unavailable")
+            val themeAsset = airPlayConfig.ultraThemeBinding?.asset?.takeIf { airPlayConfig.ultraHandshake }
             val endpoint = Iap2WiredCarPlayEndpoint(
                 ipv6Addresses = listOf(config.linkLocal),
                 airPlayPort = vpnService?.boundPort() ?: airPlayConfig.port,
                 publicKey = identity.publicKeyHex,
                 sourceVersion = airPlayConfig.sourceVersion,
                 deviceIdentifier = ncmHostMac.macString(),
+                themeAsset = themeAsset,
             )
             onStatus(CarPlayStatus.RunningControl)
             debugLog(
@@ -2280,7 +2358,7 @@ class CarPlayController(
                     "vehicleStatus=${config.identification.vehicleStatusEnabled}",
             )
             val result = Iap2WiredControlClient(csm, Iap2MfiAuthenticationClient(mfi)).run(
-                identification = config.identification,
+                identification = config.identification.copy(themeAssetIdentifier = themeAsset?.identifier),
                 endpoint = endpoint,
                 availableCurrentMilliAmps = config.availableCurrentMilliAmps,
                 timeoutMillis = controlLoopTimeoutMillis(),

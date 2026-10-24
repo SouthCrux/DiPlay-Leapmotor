@@ -5,6 +5,8 @@ import java.net.Socket
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
@@ -30,6 +32,8 @@ class CurrentScreenListenerTest {
     /** Records the four video deliveries; the 4-argument frame is recorded on its own, not via the 3-argument default. */
     private class RecordingSink : MediaSink {
         val events: MutableList<Event> = Collections.synchronizedList(mutableListOf())
+        val activity: MutableList<Pair<Int, Boolean>> = Collections.synchronizedList(mutableListOf())
+        override fun onScreenStreamActive(type: Int, active: Boolean) { activity += type to active }
         override fun onVideoCodec(type: Int, codec: VideoCodec) { events += Event.Codec(type, codec) }
         override fun onVideoConfig(type: Int, codecData: ByteArray) { events += Event.CodecData(type, codecData.toList()) }
         override fun onVideoFrame(type: Int, naluBytes: ByteArray) { events += Event.Frame(type, naluBytes.toList()) }
@@ -66,6 +70,25 @@ class CurrentScreenListenerTest {
         listener.deliverAll()
 
         assertEquals(expected(111), sink.take())
+    }
+
+    @Test
+    fun firstFrameObservationIsTypedByOwnerAndDoesNotCountRetiredOrDuplicateCallbacks() {
+        val sink = RecordingSink()
+        var current = false
+        var observed = 0
+        val listener = currentScreenListener(111, sink, { current }, { observed++ })
+        listener.onFrame(frame)
+        assertEquals(0, observed)
+        current = true
+        listener.onFrame(timedFrame, 1L, 2L)
+        listener.onFrame(frame)
+        assertEquals(1, observed)
+        assertEquals(2, sink.take().size)
+        current = false
+        listener.onFrame(frame)
+        assertEquals(1, observed)
+        assertTrue(sink.take().isEmpty())
     }
 
     @Test
@@ -136,6 +159,57 @@ class CurrentScreenListenerTest {
             clusterListener.deliverAll()
             assertEquals(expected(111), sink.take())
         } finally {
+            engine.onSessionClosed(session)
+            session.close()
+        }
+    }
+
+    @Test
+    fun retiredCloseCallbackCannotCloseReplacementOrDeactivateItsSink() {
+        val sink = RecordingSink()
+        val engine = CarPlayMediaEngine(sink)
+        val session = testSession()
+        try {
+            withSharedSecret(session)
+            val key = CarPlayMediaEngine.StreamKey(session, 110)
+            assertNotNull(engine.onScreen(session, 110, mapOf("streamConnectionID" to 1L)))
+            val retired = streamsOf(engine).getValue(key) as ScreenStream
+            val inFlightClose = listenerOf(retired)
+            assertNotNull(engine.onScreen(session, 110, mapOf("streamConnectionID" to 2L)))
+            val current = streamsOf(engine).getValue(key)
+            sink.activity.clear()
+            // Represents run.finally passing its !closed check immediately before replacement.
+            // Delivery after close is possible; no socket timing or sleep is needed to reproduce it.
+            inFlightClose.onClosed(null)
+            assertFalse(session.isClosed)
+            assertSame(current, streamsOf(engine)[key])
+            assertTrue(sink.activity.isEmpty())
+        } finally {
+            engine.onSessionClosed(session)
+            session.close()
+        }
+    }
+
+    @Test
+    fun currentCloseCallbackRetiresSessionAndDeactivatesOnlyItsStream() {
+        val sink = RecordingSink()
+        val engine = CarPlayMediaEngine(sink)
+        val session = testSession()
+        var receiver: ScreenStream? = null
+        try {
+            withSharedSecret(session)
+            val key = CarPlayMediaEngine.StreamKey(session, 110)
+            assertNotNull(engine.onScreen(session, 110, mapOf("streamConnectionID" to 1L)))
+            val current = streamsOf(engine).getValue(key) as ScreenStream
+            receiver = current
+            sink.activity.clear()
+            listenerOf(current).onClosed(null)
+            assertTrue(session.isClosed)
+            assertFalse(streamsOf(engine).containsKey(key))
+            assertEquals(listOf(110 to false), sink.activity.toList())
+        } finally {
+            // Manual callback delivery does not end the actual accept thread owned by this fixture.
+            receiver?.close()
             engine.onSessionClosed(session)
             session.close()
         }

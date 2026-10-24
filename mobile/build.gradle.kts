@@ -15,10 +15,12 @@ android {
 
     defaultConfig {
         applicationId = "com.shihab.diplay"
+        resValue("bool", "config_ultra_transparent_header", providers.gradleProperty("ultraTransparentHeader").orElse("false").get())
         minSdk = 25
         targetSdk = 37
-        versionCode = 39
-        versionName = "0.2.20"
+        versionCode = 44
+        // Upstream base remains 0.2.20; this is a separately distributed C11 development build.
+        versionName = "0.2.20-c11.20261024.4"
 
     }
 
@@ -55,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        resValues = true
     }
 }
 

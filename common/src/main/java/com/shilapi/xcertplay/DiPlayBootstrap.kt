@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay
 
 import android.content.Context
+import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.airplay.AirPlayIdentity
 import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.orchestration.MfiTarget
@@ -80,8 +81,24 @@ internal object DiPlayPreferences {
     fun saveAutoConnect(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("auto_connect", value).apply()
     }
-    fun connectOnPhoneBluetooth(context: Context) = prefs(context).getBoolean("connect_on_phone_bluetooth", false)
+    fun connectOnPhoneBluetooth(context: Context): Boolean {
+        applyManualBluetoothStartupDefault(context)
+        return prefs(context).getBoolean("connect_on_phone_bluetooth", false)
+    }
     fun saveConnectOnPhoneBluetooth(context: Context, value: Boolean) {
+        applyManualBluetoothStartupDefault(context)
         prefs(context).edit().putBoolean("connect_on_phone_bluetooth", value).apply()
+    }
+
+    /** Owner beta preference: reset an old Bluetooth-launch opt-in once, including receiver-first upgrades. */
+    @Synchronized internal fun applyManualBluetoothStartupDefault(
+        context: Context,
+        enabled: Boolean = context.resources.getBoolean(R.bool.diplay_manual_bluetooth_startup),
+    ) {
+        if (!enabled) return
+        val preferences = prefs(context)
+        if (preferences.getBoolean("manual_bluetooth_startup_applied_v1", false)) return
+        preferences.edit().putBoolean("connect_on_phone_bluetooth", false)
+            .putBoolean("manual_bluetooth_startup_applied_v1", true).commit()
     }
 }

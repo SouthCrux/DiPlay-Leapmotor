@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vehicle_field_exterior_reported">الخارج (السيارة)</string>
+    <string name="vehicle_reading_received_minutes">تم الاستلام قبل %1$s دقيقة</string>
+    <string name="vehicle_field_outside_short">الخارج</string>
+    <string name="c11_sidebar_battery">البطارية</string>
+    <string name="c11_sidebar_tyres">الإطارات</string>
+    <string name="c11_sidebar_no_data">لا توجد بيانات</string>
+    <string name="c11_sidebar_range_km">%1$s km</string>
+    <string name="c11_sidebar_range_description">المدى المقدر: %1$s</string>
+    <string name="c11_sidebar_tyres_front">الأمام (kPa)</string>
+    <string name="c11_sidebar_tyres_rear">الخلف (kPa)</string>
+    <string name="c11_sidebar_tyres_description">الأمامي الأيسر: %1$s kPa؛ الأمامي الأيمن: %2$s kPa؛ الخلفي الأيسر: %3$s kPa؛ الخلفي الأيمن: %4$s kPa</string>
+    <string name="c11_sidebar_tyre_temperatures_description">درجات حرارة الإطارات: الأمامي الأيسر %1$s °C؛ الأمامي الأيمن %2$s °C؛ الخلفي الأيسر %3$s °C؛ الخلفي الأيمن %4$s °C</string>
+    <string name="settings_c11_update_channel">نسخة تطوير C11. تتوفر التحديثات كملفات APK خاصة بـ C11؛ ولا تتضمن ملفات DiPlay الرسمية هذا التكامل.</string>
+    <string name="c11_sidebar_trip_consumption">استهلاك الرحلة\n%1$s kWh/100 km</string>
+</resources>

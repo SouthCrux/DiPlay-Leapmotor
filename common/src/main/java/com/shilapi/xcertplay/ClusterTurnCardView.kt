@@ -25,7 +25,7 @@ import com.shilapi.xcertplay.hud.ClusterTurnGuidance
  * Maneuver glyphs are Material Symbols (Apache 2.0), tinted the system blue; the roundabout
  * exit number sits in a small badge on the glyph.
  */
-internal class ClusterTurnCardView(context: Context) : View(context) {
+internal class ClusterTurnCardView(context: Context, private val boundedC11Tile: Boolean = false) : View(context) {
     private var guidance: ClusterTurnGuidance? = null
     private var night = false
     private var xPercent = ClusterTurnCardOverlay.DEFAULT_X_PERCENT
@@ -127,7 +127,7 @@ internal class ClusterTurnCardView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val next = guidance ?: return
-        val card = ClusterTurnCardOverlay.card(width, height, xPercent, yPercent, sizePercent)
+        val card = cardRect(width, height)
         val h = card.height.toFloat()
         val w = card.width.toFloat()
 
@@ -137,7 +137,8 @@ internal class ClusterTurnCardView(context: Context) : View(context) {
         canvas.drawRoundRect(rect, radius, radius, strokePaint)
 
         val chip = h * 0.76f
-        val chipLeft = card.left + h * 0.12f
+        val rtl = boundedC11Tile && resources.configuration.layoutDirection == LAYOUT_DIRECTION_RTL
+        val chipLeft = if (rtl) card.left + w - h * 0.12f - chip else card.left + h * 0.12f
         val chipTop = card.top + (h - chip) / 2f
         rect.set(chipLeft, chipTop, chipLeft + chip, chipTop + chip)
         canvas.drawRoundRect(rect, chip * 0.26f, chip * 0.26f, chipPaint)
@@ -145,43 +146,58 @@ internal class ClusterTurnCardView(context: Context) : View(context) {
         val exit = next.roundaboutExit.takeIf { it in 1..9 }
         drawGlyph(canvas, next, chipLeft, chipTop, chip, exit)
 
-        val textLeft = chipLeft + chip + h * 0.14f
-        val textWidth = card.left + w - h * 0.10f - textLeft
+        val textLeft = if (rtl) card.left + h * 0.10f else chipLeft + chip + h * 0.14f
+        val textWidth = w - chip - h * (0.12f + 0.14f + 0.10f)
+        val textX = if (rtl) textLeft + textWidth else textLeft
         if (textWidth <= 0f) return
-        distancePaint.textSize = h * 0.30f
-        roadPaint.textSize = h * 0.17f
+        val fontScale = if (boundedC11Tile) resources.configuration.fontScale else 1f
+        distancePaint.textSize = h * 0.30f * fontScale
+        roadPaint.textSize = h * 0.17f * fontScale
+        distancePaint.textAlign = if (rtl) Paint.Align.RIGHT else Paint.Align.LEFT
+        roadPaint.textAlign = distancePaint.textAlign
         canvas.drawText(
             ellipsize(distanceLabel(next.distanceMeters), textWidth, distancePaint),
-            textLeft, card.top + h * 0.44f, distancePaint,
+            textX, card.top + h * 0.44f, distancePaint,
         )
         val road = roadLabel(next)
         if (road.isNotEmpty()) {
             canvas.drawText(
                 ellipsize(road, textWidth, roadPaint),
-                textLeft, card.top + h * 0.72f, roadPaint,
+                textX, card.top + h * 0.72f, roadPaint,
             )
         }
         drawInfoStrip(canvas, next, card.left, (card.top + h).toInt(), w.toInt(), h.toInt())
     }
 
+    internal fun cardRect(width: Int, height: Int): ClusterTurnCardOverlay.CardRect =
+        if (boundedC11Tile) LeapmotorClusterTurnCardLayout.navigationCard(width, height, sizePercent)
+        else ClusterTurnCardOverlay.card(width, height, xPercent, yPercent, sizePercent)
+
     /** The arrival/duration/distance pill that hangs under the card, like the stock nav bar. */
     private fun drawInfoStrip(canvas: Canvas, next: ClusterTurnGuidance, left: Int, belowTop: Int, width: Int, cardHeight: Int) {
         val parts = infoParts(next)
         if (parts.isEmpty()) return
-        val h = (cardHeight * 0.40f).coerceAtLeast(34f)
+        val naturalHeight = (cardHeight * 0.40f).coerceAtLeast(34f)
+        val h = if (boundedC11Tile) naturalHeight.coerceAtMost(height.toFloat()) else naturalHeight
         val gap = cardHeight * 0.05f
-        val top = (belowTop + gap).coerceAtMost(height - h)
-        infoPaint.textSize = h * 0.42f
+        val below = belowTop + gap
+        val top = if (boundedC11Tile) (height - h - LeapmotorClusterTurnCardLayout.verticalInset(height)).coerceAtLeast(0f)
+            else below.coerceAtMost(height - h)
+        infoPaint.textSize = h * 0.42f * if (boundedC11Tile) resources.configuration.fontScale else 1f
         val separator = "   ·   "
         val text = parts.joinToString(separator)
         val textWidth = paintMeasure(text)
         // Wider than the card is fine: the strip centers on the card and may reach the panel edges.
         // left is an absolute panel coordinate, so every clamp below uses the panel width, never
         // the card width — clamping against the card width is what threw the strip to panel-left.
-        val maxStrip = this.width - (dp(8f) * 2).toInt()
+        val margin = if (boundedC11Tile) LeapmotorClusterTurnCardLayout.rightInset(this.width) else dp(8f).toInt()
+        val maxStrip = if (boundedC11Tile) (this.width * 0.80f).toInt().coerceAtLeast(1)
+            else this.width - (dp(8f) * 2).toInt()
         val stripWidth = maxOf(width, (textWidth + h * 0.9f).toInt()).coerceAtMost(maxStrip)
-        val stripLeft = (left + width / 2f - stripWidth / 2f).toInt()
-            .coerceIn(4, (this.width - stripWidth - 4).coerceAtLeast(4))
+        val stripLeft = (if (boundedC11Tile) this.width - margin - stripWidth
+            else (left + width / 2f - stripWidth / 2f).toInt())
+            .coerceIn(if (boundedC11Tile) margin else 4,
+                (this.width - stripWidth - if (boundedC11Tile) margin else 4).coerceAtLeast(if (boundedC11Tile) margin else 4))
         rect.set(stripLeft.toFloat(), top.toFloat(), (stripLeft + stripWidth).toFloat(), top + h)
         canvas.drawRoundRect(rect, h / 2f, h / 2f, glassPaint)
         canvas.drawRoundRect(rect, h / 2f, h / 2f, strokePaint)

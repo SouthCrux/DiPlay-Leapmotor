@@ -1,5 +1,29 @@
 # DiPlay
 
+> [!WARNING]
+> **NO PROBADO CON ANDROID AUTO / NOT TESTED WITH ANDROID AUTO.**
+> This Leapmotor prerelease has not been tested with Android Auto. Compatibility,
+> coexistence and regression-free operation with Android Auto are **not claimed**.
+> Development and vehicle observations concern Apple CarPlay on one Leapmotor C11.
+
+> [!IMPORTANT]
+> **Leapmotor C11 development preview — 0.2.20-c11.20261024.4 (versionCode 44).**
+> Branch: `leapmotor/c11-preview-20261024`. Based on upstream 0.2.20; this is not
+> a merge of the latest upstream main and is not a general vehicle release.
+> Owner-tested work includes the vehicle sidebar, battery/range/exterior and tyre
+> readings, cluster navigation and Bluetooth media controls. Automatic cluster-route
+> recovery was observed after a real vehicle reboot. Full CarPlay Ultra integration,
+> native Siri vehicle queries and climate actuation remain **experimental/unresolved**.
+> Wi-Fi disconnections are not declared fixed.
+>
+> **Public APK packaging:** the downloadable source-preview APK excludes accessory
+> authentication credentials and private Ultra resource/native inputs. It requires
+> separately configured authentication to establish CarPlay and does not reproduce
+> the private Ultra runtime used in development. The owner-tested standalone APKs
+> are not the public source-preview artifact. See [complete C11 release notes](docs/RELEASE-NOTES-C11-20261024.md).
+> The BYD support and release information below describes upstream DiPlay, not
+> validation of these features on the C11.
+
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
 **CarPlay for compatible BYD Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay`.
@@ -64,4 +88,11 @@ This repository starts with a clean public source snapshot. Local research, test
 
 ## Local release packaging
 
-The release APK intentionally contains the experimental accessory identity. The Git repository and source archive exclude all accessory and Android signing keys; tests generate synthetic identities at runtime. Source/CI builds omit runtime identity assets by default. Local release builds explicitly select an external asset directory. Publishing the APK makes its bundled identity extractable; building locally does not preserve that identity's confidentiality.
+The C11 public source-preview APK excludes the experimental accessory identity,
+private Ultra resource packages and local native-runtime inputs. It needs a
+separately configured authentication method to establish CarPlay. The historical
+upstream public previews described above used a bundled experimental identity;
+that is not the packaging of this C11 release. The Git repository and source
+archive exclude accessory and Android signing keys; tests generate synthetic
+identities at runtime. Private standalone development builds may explicitly
+select an external asset directory and are not published by this release.

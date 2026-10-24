@@ -67,6 +67,24 @@ class Iap2VehicleStatusTest {
         assertEquals(25_000, ByteBuffer.wrap(parameters.first(24)!!.payload).int)
     }
 
+    @Test fun partialOemReadingOmitsUnknownFieldsAndTheirCapabilities() {
+        val partial = reading.copy(rangeWarning = null, maxRangeKm = null, charging = null,
+            currentChargeWh = null, maxChargeWh = null)
+        val update = Iap2ParameterList.parse(Iap2VehicleStatus.update(partial).payload)
+        for (id in listOf(6, 15, 21, 22, 23, 25, 30)) assertNull(update.first(id))
+        assertEquals(150, ByteBuffer.wrap(update.first(11)!!.payload).short.toInt())
+        assertEquals(25_000, ByteBuffer.wrap(update.first(24)!!.payload).int)
+
+        val config = identification(true).copy(chargingConnectors = null).withVehicleStatusFrom { partial }
+        assertTrue(config.vehicleStatusEnabled)
+        val identification = parameters(config)
+        val vehicle = Iap2ParameterList.parse(identification.first(20)!!.payload)
+        assertTrue(vehicle.all(11).isEmpty())
+        val status = Iap2ParameterList.parse(identification.first(21)!!.payload)
+        for (id in listOf(6, 15, 30)) assertNull(status.first(id))
+        for (id in listOf(3, 11, 21)) assertTrue(status.first(id) != null)
+    }
+
     private fun connectors(choice: EvChargingConnectors): List<Int> {
         val config = identification(vehicleStatusEnabled = true).copy(chargingConnectors = choice)
         val vehicle = Iap2ParameterList.parse(parameters(config).first(20)!!.payload)

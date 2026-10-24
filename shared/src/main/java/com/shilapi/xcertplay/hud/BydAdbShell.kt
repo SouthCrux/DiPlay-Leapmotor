@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.shilapi.xcertplay.adb.AdbKeys
 import com.shilapi.xcertplay.adb.LocalAdb
+import com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy
 
 /**
  * A lazily opened adb shell on the head unit for background reads. It never asks for approval, so
@@ -25,6 +26,7 @@ internal class BydAdbShell(private val tag: String) {
     /** Same as [run], with a larger bounded read window for a command that is slow to answer. */
     @Synchronized
     fun run(context: Context, command: String, readTimeoutMillis: Int?): String? {
+        if (!VehicleIntegrationPolicy.allowsByd(context)) return null
         val now = SystemClock.elapsedRealtime()
         if (now < retryAtMillis) return null
         val client = adb ?: LocalAdb(AdbKeys.load(context)).also { adb = it }

@@ -13,6 +13,12 @@
         android:supportsRtl="true"
         android:resizeableActivity="true"
         android:theme="@style/Theme.Xcertplay">
+        <uses-native-library android:name="libsomeip.leapmotor.so" android:required="false" />
+
+        <!-- This personal fork must not select BYD OEM outputs, even with migrated preferences. -->
+        <meta-data
+            android:name="com.shilapi.xcertplay.VEHICLE_INTEGRATION"
+            android:value="leapmotor-c11" />
 
         <meta-data
             android:name="android.allow_multiple_resumed_activities"

@@ -583,11 +583,14 @@ object AirPlayPersistence {
             .apply()
     }
 
-    fun loadOemLabel(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_OEM_LABEL, DEFAULT_OEM_LABEL)
+    fun loadOemLabel(context: Context): String {
+        val label = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_OEM_LABEL, CarButtonBranding.label(context))
             // iOS hides the car icon without a label.
-            .orEmpty().ifBlank { DEFAULT_OEM_LABEL }
+            .orEmpty().ifBlank { CarButtonBranding.label(context) }
+        // Older C11 builds persisted the upstream default when saving unrelated settings.
+        return if (label == DEFAULT_OEM_LABEL) CarButtonBranding.label(context) else label
+    }
 
     fun saveOemLabel(context: Context, oemLabel: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
@@ -941,7 +944,15 @@ object AirPlayPersistence {
     fun loadClusterContent(context: Context): CarPlayClusterDisplay.Content =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CLUSTER_CONTENT, null)
             ?.let { name -> CarPlayClusterDisplay.Content.entries.firstOrNull { it.name == name } }
-            ?: if (AdbClusterRouter.enabled(context) && !loadLegacyClusterEnabled(context)) CarPlayClusterDisplay.Content.INSTRUMENTS else CarPlayClusterDisplay.Content.MAP
+            ?: when {
+                // C11's interpreted turn card remains useful even if the phone has no map video.
+                // An explicit saved choice above always wins, including a driver's MAP-only choice.
+                com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(context) ->
+                    CarPlayClusterDisplay.Content.MAP_WITH_CUSTOM_CARD
+                AdbClusterRouter.enabled(context) && !loadLegacyClusterEnabled(context) ->
+                    CarPlayClusterDisplay.Content.INSTRUMENTS
+                else -> CarPlayClusterDisplay.Content.MAP
+            }
 
     fun saveClusterContent(context: Context, content: CarPlayClusterDisplay.Content) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_CLUSTER_CONTENT, content.name).apply()

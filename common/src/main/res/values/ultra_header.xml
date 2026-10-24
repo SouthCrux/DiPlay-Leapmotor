@@ -1,0 +1,9 @@
+<resources>
+    <!-- Development variant only; ordinary builds retain the original opaque host. -->
+    <bool name="config_ultra_transparent_header">false</bool>
+    <style name="Theme.Xcertplay.UltraWallpaper" parent="Theme.Xcertplay">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+</resources>

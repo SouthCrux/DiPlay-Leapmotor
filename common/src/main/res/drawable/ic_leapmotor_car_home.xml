@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Official Leapmotor emblem: https://www.leapmotor.net/images/default-source/b10/logo-white.svg
+     The first two paths form the emblem, without the horizontal wordmark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="192dp" android:height="192dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF101318" android:pathData="M0,0h24v24h-24z" />
+    <group android:scaleX="0.8" android:scaleY="0.8"
+        android:translateX="5.03068" android:translateY="4">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M2.92724 3.27208L0.229089 4.83796C0.0890901 4.91435 0 5.06712 0 5.23262V14.7807C0 14.9462 0.0890901 15.0862 0.229089 15.1753L5.11631 18.0016C5.26904 18.0907 5.45995 17.9761 5.45995 17.8106V13.2912C5.45995 13.2148 5.42177 13.1384 5.3454 13.1002L3.38542 11.9672C3.32179 11.929 3.27088 11.8526 3.27088 11.7762V3.46304C3.27088 3.28481 3.07997 3.18297 2.92724 3.27208Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M8.48889 0.0641243L7.07617 0.878892V19.1348L8.48889 19.9495C8.62888 20.0259 8.79434 20.0259 8.93434 19.9495L10.347 19.1348V5.04185C10.347 4.86362 10.538 4.76177 10.678 4.85088L14.0379 6.79869C14.1016 6.83688 14.1525 6.91326 14.1525 6.98965V11.7637C14.1525 11.8401 14.1143 11.9164 14.0379 11.9546L12.0779 13.0877C12.0143 13.1259 11.9634 13.2023 11.9634 13.2786V17.7981C11.9634 17.9763 12.1543 18.0781 12.307 17.989L17.1943 15.1628C17.3343 15.0864 17.4233 14.9336 17.4233 14.7681V5.22008C17.4233 5.05458 17.3343 4.91454 17.1943 4.82542L8.94706 0.0641243C8.80706 -0.0122602 8.64161 -0.0122602 8.50161 0.0641243H8.48889Z" />
+    </group>
+</vector>

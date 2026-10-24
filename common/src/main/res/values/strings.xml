@@ -982,4 +982,17 @@
     <string name="black_corner_overlay_off">Off</string>
     <string name="black_corner_overlay_value">%1$d dp</string>
     <string name="iphone_corner_mask_mode">iPhone mask (experimental)</string>
+    <string name="settings_c11_assistant">Steering-wheel assistant (experimental)</string>
+    <string name="settings_c11_assistant_description">Configure the physical C11 voice button while CarPlay is visible. Changes apply when you return to CarPlay.</string>
+    <string name="settings_assistant_single">One click</string>
+    <string name="settings_assistant_double">Double click</string>
+    <string name="settings_assistant_default">Default assistant</string>
+    <string name="settings_assistant_none">No action</string>
+    <string name="settings_assistant_launch_limit">The default assistant is Siri on the connected iPhone. Launching ChatGPT, Gemini or Claude is experimental: the app must be installed, and opening it may not start voice mode or show it in CarPlay.</string>
+    <string name="settings_assistant_chatgpt">ChatGPT</string>
+    <string name="settings_assistant_gemini">Gemini</string>
+    <string name="settings_assistant_claude">Claude</string>
+    <string name="settings_c11_ultra_title">CarPlay Ultra prototype (experimental)</string>
+    <string name="settings_c11_ultra_switch">Test Ultra handshake</string>
+    <string name="settings_c11_ultra_description">Tests Ultra session negotiation with the iPhone using an Apple reference resource package. A complete Ultra interface is not available yet. Applies when CarPlay reconnects.</string>
 </resources>

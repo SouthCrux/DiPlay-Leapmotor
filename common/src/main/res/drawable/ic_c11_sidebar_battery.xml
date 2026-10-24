@@ -1,0 +1,7 @@
+<!-- Lucide battery-medium, ISC license: docs/licenses/Lucide-ISC.txt -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M10,14V10 M22,14V10 M6,14V10 M4,6H16A2,2 0,0 1,18 8V16A2,2 0,0 1,16 18H4A2,2 0,0 1,2 16V8A2,2 0,0 1,4 6Z" />
+</vector>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vehicle_field_exterior_reported">Снаружи (авто)</string>
+    <string name="vehicle_reading_received_minutes">получено %1$s мин назад</string>
+    <string name="vehicle_field_outside_short">Снаружи</string>
+    <string name="c11_sidebar_battery">Батарея</string>
+    <string name="c11_sidebar_tyres">Шины</string>
+    <string name="c11_sidebar_no_data">Нет данных</string>
+    <string name="c11_sidebar_range_km">%1$s km</string>
+    <string name="c11_sidebar_range_description">Расчётный запас хода: %1$s</string>
+    <string name="c11_sidebar_tyres_front">Передние (kPa)</string>
+    <string name="c11_sidebar_tyres_rear">Задние (kPa)</string>
+    <string name="c11_sidebar_tyres_description">Переднее левое: %1$s kPa; переднее правое: %2$s kPa; заднее левое: %3$s kPa; заднее правое: %4$s kPa</string>
+    <string name="c11_sidebar_tyre_temperatures_description">Температура шин: передняя левая %1$s °C; передняя правая %2$s °C; задняя левая %3$s °C; задняя правая %4$s °C</string>
+    <string name="settings_c11_update_channel">Сборка для разработки C11. Обновления предоставляются в APK для C11; официальные APK DiPlay не содержат эту интеграцию.</string>
+    <string name="c11_sidebar_trip_consumption">Расход за поездку\n%1$s kWh/100 km</string>
+</resources>

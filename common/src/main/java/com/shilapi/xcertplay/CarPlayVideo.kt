@@ -2,7 +2,9 @@ package com.shilapi.xcertplay
 
 import android.content.Context
 import android.content.Intent
+import android.app.ActivityOptions
 import android.os.Handler
+import android.os.Build
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
@@ -17,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import java.io.Closeable
 
 /**
  * iOS 27 video in car (see [VideoInCar]). The iPhone hands the car a media URL (insertPlayQueueItem)
@@ -32,6 +35,11 @@ internal object CarPlayVideo : CarPlayVideoListener {
     private val sender = Executors.newSingleThreadExecutor { Thread(it, "diplay-video-reply").apply { isDaemon = true } }
     @Volatile private var appContext: Context? = null
     @Volatile private var controller: CarPlayController? = null
+    private var controllerVideoBinding: Closeable? = null
+    private val routes = CarPlayVideoRouteState()
+    private val itemGeneration = AtomicLong()
+    const val EXTRA_VIDEO_SESSION = "com.shilapi.xcertplay.VIDEO_SESSION"
+    const val EXTRA_VIDEO_LAUNCH = "com.shilapi.xcertplay.VIDEO_LAUNCH"
 
     // Main-thread state; CarPlayVideoActivity applies it. The stream and item are also read by loader threads.
     @Volatile private var streamId: Long? = null
@@ -47,32 +55,125 @@ internal object CarPlayVideo : CarPlayVideoListener {
         private set
     var pendingSeekMillis: Int? = null
     var activity: CarPlayVideoActivity? = null
+        private set
 
-    fun attach(context: Context, next: CarPlayController) {
-        appContext = context.applicationContext
+    fun attach(
+        context: Context, next: CarPlayController,
+        parkedSourceFactory: (() -> CarPlayVideoParkedSource?)? = null,
+    ) {
+        val sourceContext = context.applicationContext
+        appContext = sourceContext
+        if (controller === next && routes.isSession(routes.currentSession())) return
+        controllerVideoBinding?.close()
+        streamId = null
+        var generation = routes.beginSession()
+        stop()
+        activity = null
+        streamId = null
         controller = next
-        next.videoListener = this
+        val parked = CarPlayVideoParkedSession(parkedSourceFactory) {
+            BydNavigationOutputs.parked(sourceContext)
+        }
+        val bindingLock = Any()
+        var retired = false
+        // A retired controller cannot send UI/player events into its replacement session.
+        val binding = object : CarPlayVideoListener, Closeable {
+            override fun onVideoSessionStarted() {
+                synchronized(bindingLock) {
+                    if (retired || controller !== next) return
+                    invalidateItemAtSessionBoundary()
+                    parked.begin()
+                    generation = routes.beginSession()
+                    postForSession(generation) { stop(); streamId = null }
+                }
+            }
+            override fun readParked(): Boolean? {
+                val value = parked.readParked()
+                return synchronized(bindingLock) { value.takeIf { !retired && controller === next } }
+            }
+            override fun onVideoAllowedChanged(allowed: Boolean) {
+                synchronized(bindingLock) {
+                    if (!retired && controller === next) postForSession(generation) {
+                        if (!allowed) closePlayer("the car left P")
+                    }
+                }
+            }
+            override fun onVideoSessionEnded() {
+                synchronized(bindingLock) {
+                    if (retired || controller !== next) return
+                    invalidateItemAtSessionBoundary()
+                    parked.end()
+                    endSession(generation)
+                }
+            }
+            override fun onVideoUiRequested() {
+                synchronized(bindingLock) {
+                    if (!retired && controller === next) postForSession(generation) { show() }
+                }
+            }
+            override fun onVideoMessage(streamId: Long, message: Map<String, Any?>) {
+                synchronized(bindingLock) {
+                    if (!retired && controller === next) postForSession(generation) { handle(streamId, message) }
+                }
+            }
+            override fun close() {
+                synchronized(bindingLock) {
+                    if (retired) return
+                    retired = true
+                    invalidateItemAtSessionBoundary()
+                    parked.close()
+                    endSession(generation)
+                }
+            }
+        }
+        controllerVideoBinding = binding
+        next.videoListener = binding
+    }
+
+    /** Explicit opt-in for this session only. Does not enable video, invent P or reconnect CarPlay. */
+    fun selectPassengerDestinationForCurrentSession(context: Context): Boolean {
+        val selected = CarPlayPassengerDisplay.find(context)?.let(routes::selectPassenger) ?: false
+        if (!selected) {
+            routes.blockPassengerDestination()
+            val previous = activity
+            activity = null
+            if (playing) setPlaying(false)
+            previous?.closeForLostDestination()
+        }
+        return selected
+    }
+
+    fun selectDefaultDestinationForCurrentSession(): Boolean = routes.selectDefault()
+
+    private fun postForSession(generation: Long, action: () -> Unit) {
+        main.post { if (routes.isSession(generation)) action() }
+    }
+
+    private fun endSession(generation: Long) {
+        postForSession(generation) {
+            routes.endSession(generation)
+            stop()
+            activity = null
+            streamId = null
+        }
     }
 
     override fun readParked(): Boolean? = appContext?.let(BydNavigationOutputs::parked)
 
     override fun onVideoAllowedChanged(allowed: Boolean) {
-        if (!allowed) main.post { closePlayer("the car left P") }
+        postForSession(routes.currentSession()) { if (!allowed) closePlayer("the car left P") }
     }
 
     override fun onVideoSessionEnded() {
-        main.post {
-            stop()
-            streamId = null
-        }
+        endSession(routes.currentSession())
     }
 
     override fun onVideoUiRequested() {
-        main.post { show() }
+        postForSession(routes.currentSession()) { show() }
     }
 
     override fun onVideoMessage(streamId: Long, message: Map<String, Any?>) {
-        main.post { handle(streamId, message) }
+        postForSession(routes.currentSession()) { handle(streamId, message) }
     }
 
     /**
@@ -92,9 +193,14 @@ internal object CarPlayVideo : CarPlayVideoListener {
 
     /** Play or pause from the car (wheel or on-screen button); tells the iPhone at once. Main thread. */
     fun setPlaying(next: Boolean) {
+        val owner = captureResourceOwner()
         playing = next
         activity?.applyRate()
-        streamId?.let { reply(it, VideoInCar.playbackStateNotification(next, itemUuid)) }
+        owner?.let {
+            reply(it.stream, VideoInCar.playbackStateNotification(next, it.uuid), it.session) {
+                resourceOwnerCurrent(it)
+            }
+        }
     }
 
     /**
@@ -125,6 +231,8 @@ internal object CarPlayVideo : CarPlayVideoListener {
                     Log.w(TAG, "queue item this player cannot play")
                     return
                 }
+                itemGeneration.incrementAndGet()
+                cancelPendingUrls()
                 Log.i(TAG, "queue item app=${(message["item"] as? Map<*, *>)?.get("clientBundleID")}")
                 url = item.url
                 itemUuid = item.uuid
@@ -164,20 +272,55 @@ internal object CarPlayVideo : CarPlayVideoListener {
     /** What the iPhone answered to [resolveOnIphone]. */
     class LoadedUrl(val status: Int?, val data: ByteArray?, val location: String?)
 
-    private val pendingUrls = ConcurrentHashMap<Long, CompletableFuture<Map<*, *>>>()
+    internal class ResourceOwner internal constructor(
+        internal val session: Long, internal val item: Long, internal val stream: Long,
+        internal val uuid: Any?, internal val lease: CarPlayVideoRouteLease?,
+    )
+    private class PendingUrl(val owner: ResourceOwner, val answer: CompletableFuture<Map<*, *>>)
+    private val pendingUrls = ConcurrentHashMap<Long, PendingUrl>()
     private val nextUrlRequest = AtomicLong(1)
+
+    fun captureResourceOwner(lease: CarPlayVideoRouteLease? = null): ResourceOwner? {
+        val generation = routes.currentSession()
+        val stream = streamId ?: return null
+        val owner = ResourceOwner(generation, itemGeneration.get(), stream, itemUuid, lease)
+        return owner.takeIf(::resourceOwnerCurrent)
+    }
+
+    private fun resourceOwnerCurrent(owner: ResourceOwner): Boolean = routes.isSession(owner.session) &&
+        itemGeneration.get() == owner.item && streamId == owner.stream &&
+        (owner.lease == null || routes.accepts(owner.lease))
+
+    private fun cancelPendingUrls() {
+        pendingUrls.entries.forEach { (id, pending) ->
+            if (pendingUrls.remove(id, pending)) pending.answer.cancel(false)
+        }
+    }
+
+    /** Metadata can be fenced off-thread; stopping/finishing the Activity remains on main. */
+    private fun invalidateItemAtSessionBoundary() {
+        streamId = null
+        itemGeneration.incrementAndGet()
+        cancelPendingUrls()
+    }
 
     /**
      * Asks the iPhone to load a URL the car cannot (an app's own scheme), as Apple's receiver
      * does: unhandledURL request with FCUP_Response_URL / _IsContentKeyRequest / _RequestID, answered
      * with FCUP_Response_Data, _StatusCode and _Headers (Location). Blocking; a loader thread.
      */
-    fun resolveOnIphone(url: String): LoadedUrl? {
-        val stream = streamId ?: return null
+    fun resolveOnIphone(url: String): LoadedUrl? = captureResourceOwner()?.let { resolveOnIphone(url, it) }
+
+    fun resolveOnIphone(url: String, owner: ResourceOwner): LoadedUrl? {
+        if (!resourceOwnerCurrent(owner)) return null
         val id = nextUrlRequest.getAndIncrement()
         val answer = CompletableFuture<Map<*, *>>()
-        pendingUrls[id] = answer
-        reply(stream, linkedMapOf(
+        pendingUrls[id] = PendingUrl(owner, answer)
+        if (!resourceOwnerCurrent(owner)) {
+            pendingUrls.remove(id)
+            return null
+        }
+        reply(owner.stream, linkedMapOf(
             "type" to "unhandledURL",
             "kind" to "request",
             "request" to linkedMapOf(
@@ -185,8 +328,8 @@ internal object CarPlayVideo : CarPlayVideoListener {
                 "FCUP_Response_IsContentKeyRequest" to false,
                 "FCUP_Response_RequestID" to id,
             ),
-            "item" to linkedMapOf("uuid" to itemUuid),
-        ))
+            "item" to linkedMapOf("uuid" to owner.uuid),
+        ), owner.session) { resourceOwnerCurrent(owner) }
         Log.i(TAG, "asked the iPhone to load a ${android.net.Uri.parse(url).scheme} URL request=$id")
         val response = try {
             answer.get(URL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -197,6 +340,7 @@ internal object CarPlayVideo : CarPlayVideoListener {
             pendingUrls.remove(id)
         }
         response ?: return null
+        if (!resourceOwnerCurrent(owner)) return null
         val headers = response["FCUP_Response_Headers"] as? Map<*, *>
         return LoadedUrl(
             status = (response["FCUP_Response_StatusCode"] as? Number)?.toInt(),
@@ -209,16 +353,22 @@ internal object CarPlayVideo : CarPlayVideoListener {
         val response = message["response"] as? Map<*, *>
         val id = (response?.get("FCUP_Response_RequestID") as? Number)?.toLong()
         Log.i(TAG, "iPhone unhandledURL answer request=$id keys=${message.keys} responseKeys=${response?.keys}")
-        if (id != null) pendingUrls[id]?.complete(response)
+        if (id != null) pendingUrls[id]?.let { pending ->
+            if (resourceOwnerCurrent(pending.owner)) pending.answer.complete(response)
+        }
     }
 
     // While the player is closed the item stays paused where it was, so the iPhone keeps its position.
     private fun playerState(): VideoInCar.PlayerState? =
         activity?.state() ?: url?.let { VideoInCar.PlayerState(false, false, startMillis / 1000.0, 0.0, 0.0) }
 
-    private fun reply(streamId: Long, message: Map<String, Any?>) {
+    private fun reply(
+        streamId: Long, message: Map<String, Any?>,
+        generation: Long = routes.currentSession(), stillCurrent: () -> Boolean = { true },
+    ) {
         val target = controller ?: return
         sender.execute {
+            if (!routes.isSession(generation) || controller !== target || !stillCurrent()) return@execute
             // A reply that cannot be sent must never take CarPlay down with it.
             val sent = runCatching { target.sendVideoMessage(streamId, message) }
                 .onFailure { Log.w(TAG, "reply ${message["type"]} failed: ${it.javaClass.simpleName}") }
@@ -233,10 +383,72 @@ internal object CarPlayVideo : CarPlayVideoListener {
             url == null -> Log.w(TAG, "video player requested without a playable item")
             !VideoInCar.allowed -> Log.w(TAG, "video player requested while not parked")
             activity != null -> Unit
-            else -> context.startActivity(
-                Intent(context, CarPlayVideoActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
+            else -> {
+                val lease = routes.reserveLaunch() ?: return
+                val intent = Intent(context, CarPlayVideoActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra(EXTRA_VIDEO_SESSION, lease.session)
+                    .putExtra(EXTRA_VIDEO_LAUNCH, lease.launch)
+                try {
+                    val passenger = lease.passenger
+                    if (passenger == null) context.startActivity(intent)
+                    else if (Build.VERSION.SDK_INT >= 26) {
+                        val display = CarPlayPassengerDisplay.display(context, passenger)
+                            ?: error("Verified passenger destination unavailable")
+                        context.startActivity(intent,
+                            ActivityOptions.makeBasic().setLaunchDisplayId(display.displayId).toBundle())
+                    } else error("Passenger launch unavailable on this Android version")
+                } catch (error: Exception) {
+                    routes.release(lease)
+                    Log.w(TAG, "video destination launch failed: ${error.javaClass.simpleName}")
+                    setPlaying(false)
+                }
+            }
         }
+    }
+
+    fun activityLease(intent: Intent, actualDisplayId: Int): CarPlayVideoRouteLease? {
+        val lease = routes.findLease(intent.getLongExtra(EXTRA_VIDEO_SESSION, -1),
+            intent.getLongExtra(EXTRA_VIDEO_LAUNCH, -1)) ?: return null
+        if (!destinationAvailable(lease, actualDisplayId)) {
+            routes.release(lease)
+            return null
+        }
+        return lease
+    }
+
+    fun destinationAvailable(lease: CarPlayVideoRouteLease, actualDisplayId: Int): Boolean {
+        if (!routes.accepts(lease) || !VideoInCar.allowed) return false
+        val passenger = lease.passenger ?: return true
+        val context = appContext ?: return false
+        return actualDisplayId == passenger.logicalDisplayId &&
+            CarPlayPassengerDisplay.display(context, passenger) != null
+    }
+
+    fun playerReady(player: CarPlayVideoActivity, lease: CarPlayVideoRouteLease): Boolean {
+        if (!destinationAvailable(lease, player.videoDisplayId())) return false
+        if (activity != null && activity !== player) return false
+        activity = player
+        return true
+    }
+
+    fun isCurrentPlayer(player: CarPlayVideoActivity, lease: CarPlayVideoRouteLease?): Boolean =
+        lease != null && activity === player && routes.accepts(lease)
+
+    /** Revoke before Android's asynchronous finish: a queued setRate cannot reactivate this player. */
+    fun destinationLost(player: CarPlayVideoActivity, lease: CarPlayVideoRouteLease?) {
+        if (lease == null || !isCurrentPlayer(player, lease)) return
+        if (lease.passenger != null) routes.blockPassengerDestination() else routes.release(lease)
+        activity = null
+        if (playing) setPlaying(false)
+    }
+
+    fun playerDestroyed(player: CarPlayVideoActivity, lease: CarPlayVideoRouteLease?, positionMillis: Int?) {
+        if (lease == null) return
+        val owner = isCurrentPlayer(player, lease)
+        if (activity === player) activity = null
+        routes.release(lease)
+        if (owner) onPlayerClosed(positionMillis)
     }
 
     private fun closePlayer(reason: String) {
@@ -246,10 +458,15 @@ internal object CarPlayVideo : CarPlayVideoListener {
     }
 
     private fun stop() {
+        routes.cancelLaunch()
+        itemGeneration.incrementAndGet()
+        cancelPendingUrls()
         url = null
         itemUuid = null
         playing = false
         pendingSeekMillis = null
-        activity?.finish()
+        val previous = activity
+        activity = null
+        previous?.finish()
     }
 }

@@ -928,4 +928,17 @@
     <string name="black_corner_overlay_off">إيقاف</string>
     <string name="black_corner_overlay_value">%1$d dp</string>
     <string name="iphone_corner_mask_mode">قناع iPhone (تجريبي)</string>
+    <string name="settings_c11_assistant">مساعد المقود (تجريبي)</string>
+    <string name="settings_c11_assistant_description">اضبط زر الصوت الفعلي في C11 أثناء ظهور CarPlay. تُطبّق التغييرات عند العودة إلى CarPlay.</string>
+    <string name="settings_assistant_single">ضغطة واحدة</string>
+    <string name="settings_assistant_double">ضغطتان</string>
+    <string name="settings_assistant_default">المساعد الافتراضي</string>
+    <string name="settings_assistant_none">بلا إجراء</string>
+    <string name="settings_assistant_launch_limit">المساعد الافتراضي هو Siri على iPhone المتصل. فتح ChatGPT أو Gemini أو Claude تجريبي: يجب تثبيت التطبيق، وقد يفتح دون بدء الوضع الصوتي أو الظهور في CarPlay.</string>
+    <string name="settings_assistant_chatgpt">ChatGPT</string>
+    <string name="settings_assistant_gemini">Gemini</string>
+    <string name="settings_assistant_claude">Claude</string>
+    <string name="settings_c11_ultra_title">نموذج CarPlay Ultra (تجريبي)</string>
+    <string name="settings_c11_ultra_switch">اختبار اتصال Ultra</string>
+    <string name="settings_c11_ultra_description">يختبر تفاوض جلسة Ultra مع iPhone باستخدام حزمة موارد مرجعية من Apple. واجهة Ultra الكاملة غير متاحة بعد. يسري عند إعادة اتصال CarPlay.</string>
 </resources>

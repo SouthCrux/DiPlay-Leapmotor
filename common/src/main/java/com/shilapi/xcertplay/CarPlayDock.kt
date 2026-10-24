@@ -19,7 +19,7 @@ enum class CarPlayDock(val edge: Int?) {
 
         fun load(context: Context): CarPlayDock =
             entries.firstOrNull { it.name == context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_DOCK, null) }
-                ?: AUTOMATIC
+                ?: if (com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.enabled(context)) DRIVER_SIDE else AUTOMATIC
 
         fun save(context: Context, dock: CarPlayDock) =
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_DOCK, dock.name).apply()

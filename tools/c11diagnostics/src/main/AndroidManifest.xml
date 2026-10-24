@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.car.permission.CAR_ENERGY" />
+    <queries><package android:name="com.android.car" /></queries>
+    <application android:label="C11 Diagnóstico" android:allowBackup="false"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:supportsRtl="true">
+        <uses-library android:name="android.car" android:required="false" />
+        <uses-native-library android:name="libsomeip.leapmotor.so" android:required="false" />
+        <uses-native-library android:name="liblp.cam_jni.so" android:required="false" />
+        <activity android:name=".CameraProbeActivity" android:exported="false" android:process=":cameraprobe" />
+        <activity android:name=".OemProbeActivity" android:exported="false" android:process=":oemprobe" />
+        <activity android:name=".DiagnosticActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vehicle_field_exterior_reported">外気温（車両）</string>
+    <string name="vehicle_reading_received_minutes">%1$s分前に受信</string>
+    <string name="vehicle_field_outside_short">外気温</string>
+    <string name="c11_sidebar_battery">バッテリー</string>
+    <string name="c11_sidebar_tyres">タイヤ</string>
+    <string name="c11_sidebar_no_data">データなし</string>
+    <string name="c11_sidebar_range_km">%1$s km</string>
+    <string name="c11_sidebar_range_description">推定航続距離: %1$s</string>
+    <string name="c11_sidebar_tyres_front">前輪 (kPa)</string>
+    <string name="c11_sidebar_tyres_rear">後輪 (kPa)</string>
+    <string name="c11_sidebar_tyres_description">左前：%1$s kPa、右前：%2$s kPa、左後：%3$s kPa、右後：%4$s kPa</string>
+    <string name="c11_sidebar_tyre_temperatures_description">タイヤ温度：左前 %1$s °C、右前 %2$s °C、左後 %3$s °C、右後 %4$s °C</string>
+    <string name="settings_c11_update_channel">C11開発版です。更新はC11用APKで提供されます。DiPlayの公式APKにはこの連携は含まれていません。</string>
+    <string name="c11_sidebar_trip_consumption">トリップ消費量\n%1$s kWh/100 km</string>
+</resources>

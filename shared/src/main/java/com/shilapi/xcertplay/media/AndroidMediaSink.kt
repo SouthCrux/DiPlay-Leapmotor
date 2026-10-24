@@ -219,7 +219,24 @@ class AndroidMediaSink(
     private val vendorLowLatencyDecoder: Boolean = false,
     /** Opt-in MTK ACodec low-latency/no-reorder modes, with per-session automatic fallback. */
     private val mtkDecoderTuningEnabled: Boolean = false,
+    /**
+     * Optional timing seam for a future local compositor. Called on a decoder thread; must not block.
+     * Reports release from each stream's primary decoder, not confirmed display presentation or ownership.
+     * Mirrors/parked output do not report. Leaving this unset preserves the normal video path.
+     */
+    private val onVideoFrameRelease: ((Int, VideoFrameRelease) -> Unit)? = null,
+    /** Explicit non-display outputs. Call setSurface(type, target.surface) before feeding that stream. */
+    videoCompositionTargets: Map<Int, VideoCompositionTarget> = emptyMap(),
+    /** Negotiated geometry for independent streams; absent types retain the main-screen defaults. */
+    videoDimensionsByStream: Map<Int, Pair<Int, Int>> = emptyMap(),
 ) : MediaSink {
+    // Reject invalid geometry before acquiring ambient/audio owners or creating any workers.
+    private val dimensionsByStream = videoDimensionsByStream.toMap().also { dimensions ->
+        require(dimensions.values.all { (width, height) ->
+            width in 1..8192 && height in 1..8192 && width.toLong() * height <= 32_000_000L
+        }) { "Invalid video stream dimensions" }
+    }
+    private val compositionTargets = videoCompositionTargets.toMap()
     // Each downlink publishes its own reference; a mic must match that stream and sample rate.
     private val callEchoReferences = ConcurrentHashMap<AudioStreamId, EchoReference>()
     private val appContext = context?.applicationContext
@@ -672,26 +689,33 @@ class AndroidMediaSink(
         }
     }
 
-    private fun newVideoDecoder(type: Int, surface: Surface?, statsLabel: String? = null, startImmediately: Boolean = true) = VideoDecoder(
-        type,
-        surface,
-        videoWidth,
-        videoHeight,
-        preferSoftwareHevcDecoder,
-        requestKeyFrame = { requestVideoRecovery(type) },
-        report = { videoDiagnosticHandlers[type]?.invoke(it) },
-        statsLabel = statsLabel,
-        onExit = ::onVideoDecoderExit,
-        // Only the main screen goes to the host's SurfaceView; mirrors and the cluster keep their path.
-        pacingDelayNanos = if (type == MAIN_SCREEN_TYPE && statsLabel == null) videoPacingDelayMillis * 1_000_000L else 0L,
-        operatingRate = videoOperatingRate(type, statsLabel, mainVideoFrameRate),
-        vendorLowLatency = vendorLowLatencyDecoder,
-        dedicatedOutputThread = vendorLowLatencyDecoder,
-        framesAtOnce = type == MAIN_SCREEN_TYPE && statsLabel == null && videoPacingDelayMillis > 0,
-        // Keep the experimental MTK mode on the main CarPlay picture only. Mirrors and the
-        // cluster have separate timing and must retain their established decoder configuration.
-        mtkDecoderTuningEnabled = mtkDecoderTuningEnabled && type == MAIN_SCREEN_TYPE && statsLabel == null,
-    ).also { if (startImmediately) it.start() }
+    private fun newVideoDecoder(type: Int, surface: Surface?, statsLabel: String? = null, startImmediately: Boolean = true): VideoDecoder {
+        val (width, height) = dimensionsByStream[type] ?: (videoWidth to videoHeight)
+        return VideoDecoder(
+            type,
+            surface,
+            width,
+            height,
+            preferSoftwareHevcDecoder,
+            requestKeyFrame = { requestVideoRecovery(type) },
+            report = { videoDiagnosticHandlers[type]?.invoke(it) },
+            statsLabel = statsLabel,
+            onExit = ::onVideoDecoderExit,
+            // Only the main screen goes to the host's SurfaceView; mirrors and the cluster keep their path.
+            pacingDelayNanos = if (type == MAIN_SCREEN_TYPE && statsLabel == null) videoPacingDelayMillis * 1_000_000L else 0L,
+            operatingRate = videoOperatingRate(type, statsLabel, mainVideoFrameRate),
+            vendorLowLatency = vendorLowLatencyDecoder,
+            dedicatedOutputThread = vendorLowLatencyDecoder,
+            framesAtOnce = type == MAIN_SCREEN_TYPE && statsLabel == null && videoPacingDelayMillis > 0,
+            // Keep the experimental MTK mode on the main CarPlay picture only. Mirrors and the
+            // cluster have separate timing and must retain their established decoder configuration.
+            mtkDecoderTuningEnabled = mtkDecoderTuningEnabled && type == MAIN_SCREEN_TYPE && statsLabel == null,
+            onFrameRelease = if (statsLabel == null) onVideoFrameRelease?.let { observer ->
+                { frame -> observer(type, frame) }
+            } else null,
+            compositionTarget = if (statsLabel == null) compositionTargets[type] else null,
+        ).also { if (startImmediately) it.start() }
+    }
 
     @Synchronized
     private fun audioRenderer(id: AudioStreamId, format: AudioFormat): AudioRenderer {
@@ -866,7 +890,7 @@ internal const val PICTURE_ORDER_PARAMETER = "vendor.qti-ext-dec-picture-order.e
 
 /** Serial MediaCodec video decoder: one worker owns configure and frame feeding. */
 private class VideoDecoder(
-    streamType: Int,
+    private val streamType: Int,
     surface: Surface?,
     private val width: Int,
     private val height: Int,
@@ -891,8 +915,11 @@ private class VideoDecoder(
      */
     private val framesAtOnce: Boolean = false,
     private val mtkDecoderTuningEnabled: Boolean = false,
+    private val onFrameRelease: ((VideoFrameRelease) -> Unit)? = null,
+    private val compositionTarget: VideoCompositionTarget? = null,
 ) : Closeable {
     private val pacer = FramePacer()
+    private val frameOrigins = if (onFrameRelease != null || compositionTarget != null) VideoFrameOrigin() else null
     private val pacingDelay = if (pacingDelayNanos > 0) PacingDelay(pacingDelayNanos) else null
     // Per queued presentation time (decode thread only): when it was queued, and whether it is a paced
     // frame's local time rather than the queue time.
@@ -934,6 +961,8 @@ private class VideoDecoder(
     private var startedLowLatency = false
     private var startedPictureOrder = false
     private var submittedFrameLogged = false
+    private val firstSubmissionLogged = AtomicBoolean(false)
+    private val mirror = statsLabel != null
     private var duplicateConfigLogged = false
     private var failureReports = 0
     private val referenceChain = VideoReferenceChain()
@@ -976,6 +1005,10 @@ private class VideoDecoder(
     }
 
     fun submit(nalus: ByteArray, senderNanos: Long = 0L, arrivalNanos: Long = 0L) {
+        if (firstSubmissionLogged.compareAndSet(false, true)) {
+            Log.i(TAG, "video decoder first submission type=$streamType width=$width height=$height " +
+                "composition=${compositionTarget != null} mirror=$mirror")
+        }
         stats.onReceived(nalus.size)
         liveReceived.incrementAndGet()
         // Pacing runs on the worker, in queue order: callbacks of a replaced stream may still deliver here.
@@ -1045,7 +1078,7 @@ private class VideoDecoder(
                             )
                             if (overloaded) {
                                 recover("video backlog kept growing or exceeded hard limit")
-                            } else feed(job.nalus, job.receivedNs, localTimeOf(job))
+                            } else feed(job.nalus, job.receivedNs, localTimeOf(job), job.senderNanos)
                         }
                         is VideoJob.SurfaceChanged -> changeSurface(job.surface)
                         is VideoJob.DetachSurface -> detach(job.request)
@@ -1457,7 +1490,7 @@ private class VideoDecoder(
         lastConfig?.let(::configureDecoder)
     }
 
-    private fun feed(nalus: ByteArray, receivedNs: Long, presentNs: Long = 0L) {
+    private fun feed(nalus: ByteArray, receivedNs: Long, presentNs: Long = 0L, senderNanos: Long = 0L) {
         val annexB = MediaCodecSupport.toAnnexB(nalus)
         val config = lastConfig ?: return
         if (outputSurface == null) return
@@ -1506,6 +1539,7 @@ private class VideoDecoder(
                 if (lastQueuedNanos != 0L && queuedNow - lastQueuedNanos > STILL_GAP_NS) resumedAtNanos = queuedNow
                 lastQueuedNanos = queuedNow
                 queuedPresentationUs[queuedSlot] = presentationUs
+                frameOrigins?.queued(presentationUs, senderNanos)
                 queuedAtNanos[queuedSlot] = queuedNow
                 queuedPaced[queuedSlot] = presentNs > 0
                 queuedBeforePause[queuedSlot] = false
@@ -1566,7 +1600,7 @@ private class VideoDecoder(
                 val render = outputSurface != null
                 // Parked output goes to the offscreen consumer: it keeps the codec's state, but it is
                 // not shown, so it is neither paced nor counted.
-                val shown = render && outputSurface !== parking?.surface
+                var shown = render && outputSurface !== parking?.surface
                 val now = System.nanoTime()
                 val slot = queuedSlotOf(info.presentationTimeUs)
                 val queued = if (slot >= 0) queuedAtNanos[slot] else 0L
@@ -1585,11 +1619,34 @@ private class VideoDecoder(
                     stats.onPacingDelay(delay.nanos)
                     localNs + delay.nanos
                 } else 0L
-                if (targetNs - now in 1..MAX_PACING_AHEAD_NS) {
+                val senderNanos = frameOrigins?.take(info.presentationTimeUs)
+                val composition = compositionTarget?.takeIf { shown && outputSurface === it.surface }
+                val timed = targetNs - now in 1..MAX_PACING_AHEAD_NS
+                var surfaceTimestamp: Long? = null
+                if (composition != null) {
+                    // A unique buffer timestamp joins actual latching to its origin; it is not a
+                    // display deadline. Never send these tokens to a SurfaceView.
+                    val token = if (senderNanos != null) try { composition.queueFrame(senderNanos) }
+                        catch (_: Exception) { report("video composition origin refused"); null } else null
+                    if (token != null && token > 0) {
+                        try { codec.releaseOutputBuffer(index, token); surfaceTimestamp = token }
+                        catch (failure: Exception) { composition.discardFrame(token); throw failure }
+                    } else {
+                        codec.releaseOutputBuffer(index, false)
+                        shown = false
+                    }
+                } else if (timed) {
                     codec.releaseOutputBuffer(index, targetNs)
+                    surfaceTimestamp = targetNs
                 } else {
                     if (shown && delay != null && !heldOverGap && !pauseHeld) stats.onLate()
                     codec.releaseOutputBuffer(index, render)
+                    if (render && info.presentationTimeUs in 1..Long.MAX_VALUE / 1000) surfaceTimestamp = localNs
+                }
+                if (shown && senderNanos != null) {
+                    val scheduled = if (timed) targetNs else now
+                    try { onFrameRelease?.invoke(VideoFrameRelease(senderNanos, scheduled, surfaceTimestamp)) }
+                    catch (_: Exception) { report("video release observer failed") }
                 }
                 if (shown) {
                     stats.onRendered()
@@ -1644,6 +1701,7 @@ private class VideoDecoder(
             decoder = null
             // The output thread returns from dequeueOutputBuffer within its timeout and then sees no codec.
             awaitNotDequeuing(codec)
+            frameOrigins?.clear()
         }
         configuredRate = 0
         configuredMtkMode = MtkDecoderMode.NONE

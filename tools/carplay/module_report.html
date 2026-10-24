@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>DiPlay · Revisión de captura</title>
+<style>
+:root{color-scheme:light dark;--bg:#f6f7f6;--surface:#fff;--text:#1f2924;--muted:#5d6b63;--line:#dce3de;--accent:#226a46;--selected:#e9f3ec;--notice:#fff3d5;--notice-text:#714700}
+@media(prefers-color-scheme:dark){:root{--bg:#151b17;--surface:#1f2822;--text:#e9f0eb;--muted:#b4c2b8;--line:#3d4d42;--accent:#9cdbb0;--selected:#2a4533;--notice:#3e3116;--notice-text:#ffe0a0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1120px;margin:auto;padding:32px 24px}header{display:flex;gap:16px;align-items:start;justify-content:space-between;flex-wrap:wrap}h1{font-size:28px;line-height:1.2;margin:6px 0 8px}h2{font-size:21px;margin:0}p{margin:0 0 12px}.brand{color:var(--accent);font-weight:650;letter-spacing:.04em}.muted,.hint{color:var(--muted)}.source{display:inline-block;padding:8px 12px;border-radius:8px;background:var(--notice);color:var(--notice-text);font-weight:600}.notice{margin:20px 0;color:var(--muted)}.modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}button{font:inherit;text-align:left;cursor:pointer;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-height:116px}button:hover{border-color:var(--accent)}button[aria-pressed=true]{background:var(--selected);border:2px solid var(--accent);padding:15px}button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}.module-title{font-weight:650;display:block;margin-bottom:10px}.module-data{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}.module-count{font-size:24px;font-variant-numeric:tabular-nums}.module-state{font-size:13px;color:var(--muted)}.module-changes{font-size:13px;color:var(--muted);display:block;margin-top:4px}.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px}.panel-head{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;justify-content:space-between;margin-bottom:16px}table{width:100%;border-collapse:collapse;table-layout:fixed}th{text-align:left;color:var(--muted);font-size:13px;font-weight:500}td,th{padding:13px 10px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}td:first-child,th:first-child{padding-left:0;width:48%}td:last-child,th:last-child{padding-right:0;width:18%;text-align:right}tr:last-child td{border-bottom:0}.value{font-size:18px;font-variant-numeric:tabular-nums}.value-note{display:block;color:var(--muted);font-size:12px;margin-top:3px}details{margin-top:6px;color:var(--muted);font-size:12px}summary{cursor:pointer;padding:4px 0}dl{margin:6px 0}dt{font-weight:600}dd{margin:0 0 5px;overflow-wrap:anywhere}.protocol{margin:24px 0 0;padding-top:18px;border-top:1px solid var(--line)}.protocol h2{font-size:18px;margin-bottom:10px}.protocol ul{padding-left:20px;margin:8px 0 12px}.hint{font-size:13px}.error{background:var(--notice);color:var(--notice-text);padding:16px;border-radius:8px}footer{margin-top:22px;font-size:13px;color:var(--muted)}
+@media(max-width:700px){.modules{grid-template-columns:repeat(2,minmax(0,1fr))}main{padding:24px 16px}.panel{padding:16px}}
+@media(max-width:420px){main{padding:20px 12px}.modules{gap:8px}button{padding:12px;min-height:126px}button[aria-pressed=true]{padding:11px}.module-title{font-size:14px}.module-count{font-size:22px}.module-state{font-size:12px}.panel{padding:12px}td,th{padding:12px 5px}td:first-child,th:first-child{width:44%}td:last-child,th:last-child{width:24%}h1{font-size:25px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><span class="brand">DiPlay · C11</span><h1>Revisión de captura</h1><p class="muted">Lecturas y cambios registrados por módulo.</p></div><span id="source" class="source"></span></header>
+<p id="notice" class="notice"></p>
+<div id="error" class="error" role="alert" hidden>El informe no tiene un formato compatible.</div>
+<nav id="modules" class="modules" aria-label="Seleccionar módulo"></nav>
+<section id="panel" class="panel" aria-labelledby="selected-title" hidden>
+<div class="panel-head"><h2 id="selected-title"></h2><span id="selected-summary" class="muted" aria-live="polite"></span></div>
+<p id="selected-note" class="hint" hidden></p>
+<table><thead><tr><th scope="col">Señal</th><th scope="col">Último registro</th><th scope="col">Cambios</th></tr></thead><tbody id="readings"></tbody></table>
+</section>
+<section class="protocol" aria-labelledby="protocol-title"><h2 id="protocol-title">Comunicación con el iPhone</h2><div id="protocol"></div><p class="hint">Este tráfico no demuestra que Siri haya consultado o aceptado los datos.</p></section>
+<footer>Lecturas históricas. El significado físico, las unidades y los controles siguen pendientes de validación en el coche.</footer>
+</main>
+<script type="application/json" id="report-data">__DIPLAY_REPORT_JSON__</script>
+<script>
+"use strict";
+(()=>{
+const moduleNames={CHARGING:"Carga",DOORS_LOCKS:"Puertas y baúl",WINDOWS_ROOF:"Ventanillas, techo y espejos",SEATS:"Asientos",LIGHTS:"Luces",ENERGY:"Energía y consumo",WIPERS:"Limpiaparabrisas",DRIVING:"Conducción",WARNINGS:"Avisos",CLIMATE:"Climatización"};
+const channelNames={FRONT_WIPER_MAINTENANCE_OFF_FAILURE:"Aviso al salir de mantenimiento delantero (código)",FRONT_WIPER_MAINTENANCE_ON_FAILURE:"Aviso al entrar en mantenimiento delantero (código)",FRONT_WIPER_START_FAILURE:"Aviso de activación delantero (código)",REAR_WIPER_MAINTENANCE_ON_FAILURE:"Aviso al entrar en mantenimiento trasero (código)",REAR_WIPER_MAINTENANCE_OFF_FAILURE:"Aviso al salir de mantenimiento trasero (código)",REAR_WIPER_START_FAILURE:"Aviso de activación trasero (código)",HVAC_SMART_CLEAR_STATUS:"Limpieza inteligente del aire (código)",HVAC_SYNC_FEEDBACK:"Retorno de SYNC (código)",REAR_HVAC_DISPLAY_TEMPERATURE:"Temperatura trasera mostrada (°C OEM)",REAR_HVAC_POWER_STATUS:"Climatizador trasero (código)",REAR_HVAC_FAN_LEVEL:"Ventilador trasero (nivel OEM)",REAR_HVAC_AIR_DISTRIBUTION:"Distribución trasera (código)",REAR_HVAC_AUTO_STATUS:"AUTO trasero (código)",CABIN_PM25_LEVEL:"PM2.5 interior (nivel OEM 1–6)",HVAC_AUTO_CLEAR_STATUS:"Limpieza automática del aire (código)",FRONT_LEFT_SEAT_SLIDE_POSITION:"Desplazamiento del asiento izquierdo (% OEM)",FRONT_LEFT_SEAT_BASE_FRONT_POSITION:"Base/apoyo del asiento izquierdo (% OEM)",FRONT_LEFT_SEAT_BACKREST_POSITION:"Respaldo del asiento izquierdo (% OEM)",AC_PLUG_LOCK_STATUS:"Bloqueo del enchufe AC (código)",ONBOARD_CHARGER_STATUS:"Cargador de a bordo (código)",CLTC_RANGE:"Autonomía CLTC (km OEM)",WLTC_RANGE:"Autonomía alternativa OEM (AIAC pendiente de identificar)",RANGE_STANDARD:"Selector de autonomía (código)",TAILGATE_POSITION:"Apertura del baúl (porcentaje OEM)",POWER_TAILGATE_STATUS:"Portón eléctrico (código)",LEFT_MIRROR_HEAT_STATUS:"Calefacción del espejo izquierdo (código)",RIGHT_MIRROR_HEAT_STATUS:"Calefacción del espejo derecho (código)",BRAKE_CONTROLLER_STATUS:"Controlador de frenos (código)",MAIN_LAMP_FEEDBACK:"Retorno de faros (código)",CURRENT_TRIP_DURATION:"Duración actual (minutos OEM)",RECHARGE_TRIP_DURATION:"Duración Recharge (minutos OEM)",TRIP_A_DURATION:"Duración A (minutos OEM)",CHARGE_STATUS:"Estado de carga",AC_CONNECTION:"Conexión AC",DC_CONNECTION:"Conexión DC",CHARGE_TIME_REMAINING:"Tiempo restante (minutos OEM)",CHARGE_TARGET_PERCENT:"Límite de carga OEM",DRIVER_DOOR:"Puerta del conductor",PASSENGER_DOOR:"Puerta del acompañante",REAR_LEFT_DOOR:"Puerta trasera izquierda",REAR_RIGHT_DOOR:"Puerta trasera derecha",TAILGATE_STATUS:"Estado del baúl",HOOD_STATUS:"Estado del capó",VEHICLE_LOCK_STATUS:"Cierre centralizado (código)",REAR_LEFT_CHILD_LOCK_STATUS:"Seguro infantil trasero izquierdo",REAR_RIGHT_CHILD_LOCK_STATUS:"Seguro infantil trasero derecho",FRONT_LEFT_WINDOW_POSITION:"Ventanilla delantera izquierda",FRONT_RIGHT_WINDOW_POSITION:"Ventanilla delantera derecha",REAR_LEFT_WINDOW_POSITION:"Ventanilla trasera izquierda",REAR_RIGHT_WINDOW_POSITION:"Ventanilla trasera derecha",GLASS_ROOF_STATUS:"Techo de vidrio",SUNSHADE_POSITION:"Cortinilla del techo",DRIVER_SEAT_HEAT:"Calefacción del conductor",PASSENGER_SEAT_HEAT:"Calefacción del acompañante",REAR_LEFT_SEAT_HEAT:"Calefacción trasera izquierda",REAR_RIGHT_SEAT_HEAT:"Calefacción trasera derecha",DRIVER_SEAT_VENT:"Ventilación del conductor",PASSENGER_SEAT_VENT:"Ventilación del acompañante",REAR_LEFT_SEAT_VENT:"Ventilación trasera izquierda",REAR_RIGHT_SEAT_VENT:"Ventilación trasera derecha",FRONT_PRIMARY_OCCUPANCY_STATUS:"Detección de plaza delantera principal",FRONT_SECONDARY_OCCUPANCY_STATUS:"Detección de plaza delantera secundaria",LOW_BEAM_STATUS:"Luces bajas",HIGH_BEAM_STATUS:"Luces altas",REAR_FOG_STATUS:"Antiniebla trasera",LEFT_TURN_SWITCH:"Interruptor de giro izquierdo",RIGHT_TURN_SWITCH:"Interruptor de giro derecho",REAR_LEFT_READING_LIGHT_STATUS:"Luz de lectura trasera izquierda",REAR_RIGHT_READING_LIGHT_STATUS:"Luz de lectura trasera derecha",CURRENT_TRIP_DISTANCE:"Distancia del viaje actual",CURRENT_TRIP_CONSUMPTION:"Consumo actual (kWh/100 km OEM)",RECHARGE_TRIP_DISTANCE:"Distancia Recharge (km OEM)",RECHARGE_TRIP_CONSUMPTION:"Consumo Recharge (kWh/100 km OEM)",TRIP_A_DISTANCE:"Distancia del viaje A",TRIP_A_CONSUMPTION:"Consumo A (kWh/100 km OEM)",GEAR:"Código de marcha",READY_STATUS:"Estado READY",VEHICLE_SPEED:"Velocidad sin unidad validada",FRONT_PRIMARY_BELT:"Cinturón delantero principal",FRONT_SECONDARY_BELT:"Cinturón delantero secundario",REAR_LEFT_BELT:"Cinturón trasero izquierdo",REAR_MIDDLE_BELT:"Cinturón trasero central",REAR_RIGHT_BELT:"Cinturón trasero derecho",HVAC_POWER_STATUS:"Estado del climatizador",HVAC_AUTO_STATUS:"Modo AUTO",HVAC_AC_STATUS:"A/C y MAX A/C (código)",HVAC_AIR_DISTRIBUTION:"Distribución de aire",HVAC_FRONT_DEFROST:"Desempañado delantero",HVAC_REAR_DEFROST:"Desempañado trasero",HVAC_RECIRCULATION_STATUS:"Estado de recirculación",HVAC_RECIRCULATION_AUTO_STATUS:"Modo automático de recirculación"};
+const byId=id=>document.getElementById(id);
+const element=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=String(text);if(cls)node.className=cls;return node};
+let report;
+try{report=JSON.parse(byId("report-data").textContent);if(report.schemaVersion!==1||!Array.isArray(report.modules)||report.modules.some(m=>!Object.hasOwn(moduleNames,m.module)||!Array.isArray(m.channels)))throw Error();}
+catch{byId("error").hidden=false;return;}
+const simulated=report.inputKind==="SIMULATED";
+byId("source").textContent=simulated?"SIMULACIÓN · datos inventados":"Captura pendiente de validar";
+byId("notice").textContent=simulated?"Este ejemplo prueba la herramienta. Los valores no provienen del coche.":"El informe muestra lo registrado durante la captura; no indica el estado actual del coche.";
+const buttons=new Map();
+function select(module){
+for(const [key,button]of buttons)button.setAttribute("aria-pressed",String(key===module.module));
+byId("selected-title").textContent=moduleNames[module.module];
+byId("selected-summary").textContent=`${module.observedChannels} de ${module.expectedChannels} señales registradas`;
+const notes={WIPERS:"Estos códigos son avisos de mantenimiento/activación. No confirman velocidad, AUTO, lluvia ni funcionamiento normal. Retornos físicos pendientes de validar.",CHARGING:"Conector conectado, bloqueo del enchufe y cargador de a bordo son estados separados. Los códigos no confirman por sí solos carga activa.",ENERGY:"El coche ofrece CLTC y AIAC (consumo asistido por IA), según el propietario. Falta confirmar si el canal OEM llamado WLTC corresponde a AIAC. Estas lecturas no sustituyen la autonomía actual de DiPlay.",DOORS_LOCKS:"El porcentaje y el código del portón eléctrico se registran separados del sensor del baúl. Dirección de apertura y estados físicos pendientes de contraste.",WINDOWS_ROOF:"Plegado de espejos: lectura de retorno sin verificar. Los códigos de calefacción se conservan por lado sin interpretarlos como encendido o apagado.",DRIVING:"Auto Hold y freno aplicado: sin interpretación verificada. El código de frenos no confirma estacionamiento. Modo de conducción y regeneración: sin lectura de retorno verificada. Los botones y ajustes guardados no confirman el modo físico.",SEATS:"Posiciones del asiento: extremos y función física del ajuste de base pendientes de contraste. Calefacción y ventilación automáticas: sin lectura de retorno verificada. Los códigos de ocupación no autorizan controles.",CLIMATE:"MAX A/C: el consumidor OEM reconoce el código 2 de A/C; contraste físico pendiente. ECO: retorno sin verificar. Climatización trasera: equipamiento y recepción pendientes de validar. La temperatura mostrada no es un sensor ambiente. PM2.5 es una categoría OEM, no una concentración ni valoración sanitaria. SYNC: retorno preparado; códigos y variante pendientes de contraste físico. Temperaturas iguales no confirman que esté activo.",LIGHTS:"AUTO seleccionado y luces encendidas aún no se distinguen con certeza. Color y brillo ambiental: todavía no hay una lectura de retorno verificada. Los ajustes guardados no confirman el estado físico."};
+byId("selected-note").hidden=!notes[module.module];
+byId("selected-note").textContent=notes[module.module]||"";
+const rows=byId("readings");rows.replaceChildren();
+for(const reading of module.channels){
+ const row=element("tr"),label=element("td",channelNames[reading.channel]||reading.channel),valueCell=element("td"),change=element("td",reading.valueChanges);
+ const last=reading.lastRecorded,hasValue=last&&last.rawValue!==null;
+ valueCell.append(element("span",hasValue?last.rawValue:last?"Dato retirado":"Sin registro","value"));
+ valueCell.append(element("span",hasValue?"Valor sin interpretar":last?"Sin valor disponible":"Sin lectura recibida","value-note"));
+ if(last){const detail=element("details"),summary=element("summary","Ver registro"),data=element("dl");
+  data.append(element("dt","Hora del dispositivo"),element("dd",last.deviceTime),element("dt","Recepción"),element("dd",last.readingState==="STALE"?"Dato vencido":last.rawValue===null?"Dato no disponible":"Observación sin validar"));
+  detail.append(summary,data);label.append(detail);
+ }
+ row.append(label,valueCell,change);rows.append(row);
+}
+byId("panel").hidden=false;
+}
+for(const module of report.modules){
+ const button=element("button");button.type="button";button.setAttribute("aria-pressed","false");button.setAttribute("aria-controls","panel");
+ button.append(element("span",moduleNames[module.module],"module-title"));
+ const data=element("span",undefined,"module-data");data.append(element("span",`${module.observedChannels}/${module.expectedChannels}`,"module-count"),element("span",module.observedChannels?"con lecturas":"sin lecturas","module-state"));
+ button.append(data,element("span",`${module.channelsWithChanges} ${module.channelsWithChanges===1?"señal":"señales"} con cambios`,"module-changes"));
+ button.addEventListener("click",()=>select(module));buttons.set(module.module,button);byId("modules").append(button);
+}
+const protocol=byId("protocol"),requests=report.phoneProtocol?.requests||{},rejections=report.phoneProtocol?.rejections||{};
+const requestCount=Object.values(requests).reduce((a,b)=>a+b,0),rejectCount=Object.values(rejections).reduce((a,b)=>a+b,0);
+protocol.append(element("p",`${requestCount} ${requestCount===1?"petición registrada":"peticiones registradas"} · ${rejectCount} ${rejectCount===1?"rechazo registrado":"rechazos registrados"}`));
+if(rejectCount){const list=element("ul");for(const [reason,count]of Object.entries(rejections))list.append(element("li",`${reason}: ${count}`));protocol.append(list);}
+if(report.modules.length)select(report.modules[0]);
+})();
+</script>
+</body>
+</html>

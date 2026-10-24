@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Read-only gear selection on the verified C11 firmware (normal permission there).
+         This grants neither climate control nor permission to write vehicle properties. -->
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
+    <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT" />
     <!-- Optional, user-authorized startup of the car's own hotspot. -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
@@ -36,6 +40,8 @@
         </intent>
     </queries>
     <application>
+        <!-- Optional platform API only; no extracted OEM library is packaged or loaded. -->
+        <uses-library android:name="android.car" android:required="false" />
         <provider
             android:name="com.shilapi.xcertplay.CrashRecordInstaller"
             android:authorities="${applicationId}.crash-record"
@@ -70,6 +76,8 @@
         </activity>
         <service android:name="com.shilapi.xcertplay.DiPlaySessionService"
             android:exported="false" android:foregroundServiceType="connectedDevice|microphone|location" />
+        <service android:name="com.shilapi.xcertplay.vehicle.LeapmotorTelemetryService"
+            android:exported="false" android:process=":c11telemetry" />
 
         <activity
             android:name="com.shilapi.xcertplay.CarPlayHostActivity"

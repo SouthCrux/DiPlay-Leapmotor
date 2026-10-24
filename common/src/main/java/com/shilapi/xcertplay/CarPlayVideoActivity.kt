@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -32,6 +33,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsManifest
@@ -57,15 +59,17 @@ import kotlin.math.roundToInt
 class CarPlayVideoActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
     private lateinit var player: ExoPlayer
+    private lateinit var upstreamSources: DataSource.Factory
     private lateinit var controls: View
     private lateinit var playPause: ImageView
     private lateinit var position: TextView
     private lateinit var length: TextView
     private lateinit var timeBar: SeekBar
     private var scrubbing = false
-    private var loadedUrl: String? = null
     private var prepared = false
     private var encryptionLogged = false
+    private var routeLease: CarPlayVideoRouteLease? = null
+    private var destinationMonitor: CarPlayVideoDestinationMonitor? = null
     private val hideControls = Runnable {
         controls.visibility = View.GONE
         main.removeCallbacks(tick)
@@ -79,14 +83,19 @@ class CarPlayVideoActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        routeLease = CarPlayVideo.activityLease(intent, videoDisplayId())
+        if (routeLease == null) {
+            finish()
+            return
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
-        val sources = IphoneResolvingDataSource.Factory(DefaultDataSource.Factory(this, http))
-        player = ExoPlayer.Builder(this).setMediaSourceFactory(DefaultMediaSourceFactory(sources)).build()
+        upstreamSources = DefaultDataSource.Factory(this, http)
+        player = ExoPlayer.Builder(this).build()
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY && !prepared) {
@@ -98,6 +107,7 @@ class CarPlayVideoActivity : Activity() {
             override fun onTimelineChanged(timeline: Timeline, reason: Int) = logEncryption()
 
             override fun onPlayerError(error: PlaybackException) {
+                if (!CarPlayVideo.isCurrentPlayer(this@CarPlayVideoActivity, routeLease)) return
                 Log.w(TAG, "player error ${error.errorCodeName}: ${causes(error)}")
                 CarPlayVideo.onPlayerFailed(
                     when (error.errorCode) {
@@ -120,7 +130,20 @@ class CarPlayVideoActivity : Activity() {
             addView(controls, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         })
         view.setOnClickListener { showControls() }
-        CarPlayVideo.activity = this
+        if (!CarPlayVideo.playerReady(this, routeLease!!)) {
+            finish()
+            return
+        }
+        if (routeLease!!.passenger != null) {
+            try {
+                destinationMonitor = CarPlayVideoDestinationMonitor(this, routeLease!!.passenger!!.logicalDisplayId,
+                    available = { CarPlayVideo.destinationAvailable(routeLease!!, videoDisplayId()) },
+                    onLost = { closeForLostDestination() })
+            } catch (_: Exception) {
+                finish()
+                return
+            }
+        }
         load()
         showControls()
     }
@@ -146,7 +169,9 @@ class CarPlayVideoActivity : Activity() {
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0x80000000.toInt()) }
             setOnClickListener { onClick(); showControls() }
         }
-        playPause = round(Media3R.drawable.exo_icon_play, "") { CarPlayVideo.setPlaying(!CarPlayVideo.playing) }
+        playPause = round(Media3R.drawable.exo_icon_play, "") {
+            if (CarPlayVideo.isCurrentPlayer(this, routeLease)) CarPlayVideo.setPlaying(!CarPlayVideo.playing)
+        }
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -263,34 +288,44 @@ class CarPlayVideoActivity : Activity() {
     }
 
     fun load() {
+        if (!CarPlayVideo.isCurrentPlayer(this, routeLease)) return
         val url = CarPlayVideo.url ?: return
-        if (url == loadedUrl) return
-        loadedUrl = url
+        val owner = CarPlayVideo.captureResourceOwner(routeLease) ?: return
         prepared = false
         encryptionLogged = false
         Log.i(TAG, "loading video scheme=${Uri.parse(url).scheme.orEmpty()} ${playbackNetworkSummary()}")
         val item = MediaItem.Builder().setUri(url)
             .apply { if (CarPlayVideo.streaming) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
-        player.setMediaItem(item, (CarPlayVideo.pendingSeekMillis ?: CarPlayVideo.startMillis).toLong())
+        // Bind every playlist/key request to this item, even after another queue item replaces it.
+        val sources = DataSource.Factory {
+            IphoneResolvingDataSource(upstreamSources.createDataSource()) { target ->
+                CarPlayVideo.resolveOnIphone(target, owner)
+            }
+        }
+        player.setMediaSource(DefaultMediaSourceFactory(sources).createMediaSource(item),
+            (CarPlayVideo.pendingSeekMillis ?: CarPlayVideo.startMillis).toLong())
         CarPlayVideo.pendingSeekMillis = null
         player.prepare()
         applyRate()
     }
 
     fun applyRate() {
+        if (!CarPlayVideo.isCurrentPlayer(this, routeLease)) return
         player.playWhenReady = CarPlayVideo.playing
         if (controls.visibility == View.VISIBLE) updatePlayPause()
     }
 
     /** Moves the playback position by [deltaMillis], within the video. */
     fun skip(deltaMillis: Int) {
+        if (!CarPlayVideo.isCurrentPlayer(this, routeLease)) return
         if (!prepared) return
         val end = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
         player.seekTo((player.currentPosition + deltaMillis).coerceIn(0, end))
     }
 
     fun applySeek() {
+        if (!CarPlayVideo.isCurrentPlayer(this, routeLease)) return
         val target = CarPlayVideo.pendingSeekMillis ?: return
         player.seekTo(target.toLong()) // ExoPlayer seeks to the exact position
         CarPlayVideo.pendingSeekMillis = null
@@ -332,14 +367,40 @@ class CarPlayVideoActivity : Activity() {
     }
 
     override fun onDestroy() {
+        destinationMonitor?.close()
+        destinationMonitor = null
         main.removeCallbacks(hideControls)
         main.removeCallbacks(tick)
-        if (CarPlayVideo.activity === this) {
-            CarPlayVideo.activity = null
-            CarPlayVideo.onPlayerClosed(if (prepared) player.currentPosition.toInt() else null)
-        }
-        player.release()
+        CarPlayVideo.playerDestroyed(this, routeLease,
+            if (::player.isInitialized && prepared) player.currentPosition.toInt() else null)
+        if (::player.isInitialized) player.release()
         super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkDestination()
+    }
+
+    private fun checkDestination() {
+        val lease = routeLease ?: return
+        if (!CarPlayVideo.isCurrentPlayer(this, lease) ||
+            !CarPlayVideo.destinationAvailable(lease, videoDisplayId())) closeForLostDestination()
+    }
+
+    internal fun closeForLostDestination() {
+        CarPlayVideo.destinationLost(this, routeLease)
+        if (::player.isInitialized) player.pause()
+        finish()
+    }
+
+    @Suppress("DEPRECATION")
+    internal fun videoDisplayId(): Int = try {
+        if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: -1
+        else windowManager.defaultDisplay.displayId
+    } catch (_: RuntimeException) {
+        // A missing visual context or a disappearing display cannot authorize another screen.
+        -1
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()

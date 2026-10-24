@@ -1,0 +1,4 @@
+<resources>
+    <!-- This owner's development beta starts manually after upgrade, as requested. -->
+    <bool name="diplay_manual_bluetooth_startup">true</bool>
+</resources>

@@ -140,4 +140,23 @@ class DiagnosticRedactorTest {
         for (line in lines) assertEquals(line, line, DiagnosticRedactor.redact(line))
         assertNull(DiagnosticRedactor.redact("airplay rx POST /pair-verify body=secret"))
     }
+
+    @Test fun featureNegotiationSurvivesSavedReportsWithoutRawFeatureValues() {
+        val line = "airplay features proposedState=list " +
+            "proposed=[iAPChannel,uiSync,vehicleStateProtocol,fileTransfer] proposedUnknown=2 proposedInvalid=1 " +
+            "enabled=[iAPChannel,viewAreas] enabledUnknown=0 enabledInvalid=0"
+        val folder = Files.createTempDirectory("diplay-feature-report").toFile()
+        try {
+            val file = folder.resolve("diplay.log")
+            SessionLogFile(file).use { log ->
+                log.append(line)
+                log.append("TRACE airplay control rx bodyHex=private")
+                log.append("airplay SETUP payload={features=[password=secret]}")
+            }
+            val report = file.readText()
+            assertTrue(report.contains(line))
+            assertFalse(report.contains("private"))
+            assertFalse(report.contains("secret"))
+        } finally { folder.deleteRecursively() }
+    }
 }
