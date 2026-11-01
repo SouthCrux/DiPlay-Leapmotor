@@ -1,3 +1,16 @@
+# Leapmotor C11 integration candidate — 0.2.22-c11.20261101.1 — 2026-11-01
+
+> [!WARNING]
+> **NO PROBADO CON ANDROID AUTO / NOT TESTED WITH ANDROID AUTO.**
+> No Android Auto compatibility or regression testing has been performed.
+
+- Merge upstream tag `v0.2.22` into the dedicated Leapmotor branch, retaining the C11 vehicle sidebar, read-only telemetry, steering-wheel Bluetooth ownership, bounded cluster output and experimental integrations.
+- Include upstream connection diagnostics and recovery, audio clock corrections, retained-session UI recovery and delayed cluster startup after the main picture.
+- Preserve the C11 route recovery and per-cluster day/night command delivery from development builds 48 and 49. These changes still require owner validation on the vehicle.
+- Complete the C11 settings translations for Italian, Korean and Turkish and adapt the routing regression test to upstream's main-frame startup gate.
+- Use versionCode 50 and upstream base 0.2.22. Authentication resources, Refoss configuration, keys and private captures remain outside the public source and source-preview packages.
+- This is a local integration candidate, not a published release or a claim of vehicle acceptance. The owner performs vehicle testing.
+
 # Leapmotor C11 preview — 0.2.20-c11.20261024.4 — 2026-10-24
 
 > [!WARNING]
@@ -16,6 +29,27 @@
 - Bump the APK to versionCode44. The public source-preview APK omits authentication credentials and private Ultra runtime/resource inputs.
 
 See [full release notes, packaging requirements and known limitations](docs/RELEASE-NOTES-C11-20261024.md).
+# DiPlay 0.2.22 — 2026-10-28
+
+- Fix the two 0.2.21 regressions: connect wireless CarPlay over the car hotspot again on BYD DiLink 3.0/4.0 and other units where 0.2.21 took a mobile-data interface for the hotspot, and keep wireless music at the iPhone's speed from the first second instead of 1.5 % fast with stutter (#936, #950, #993, #1070, #1080).
+- Record the driver's voice in WeChat voice messages, Voice Memos and dictation over USB by sending 48 kHz microphone audio in packets that fit the link, and hear music and navigation again after calls on head units that were already in their call state (#1148, #994).
+- Connect wired CarPlay on the first attempt after a replug or reconnect, start wireless up to 20 s sooner on slow resolvers, reconnect after Wi-Fi drops on Android 8–9, retry as soon as Bluetooth turns on, and bring CarPlay to the front when auto-start finds it already connecting (#962, #1057, #972, #1042, #914, #1085).
+- Name known connection problems on the CarPlay screen and Home, including an unpaired or unchosen iPhone, car hotspot problems, a car that sees no USB device, a VPN that cannot be allowed and an iPhone that sends no picture (#1058, #1060, #1062, #1066, #1096, #1097, #1045).
+- Fix two-finger gestures, stop the quick-menu swipe tapping CarPlay, coalesce drags behind a slow connection, show the saved CarPlay size and frame rate, and add the dashboard map on the Denza N9 and Lynk & Co 03, a full-screen DiLink 3.0 dashboard map and steadier cluster album art (#912, #922, #1134, #1032, #934, #1049, #843, #956, #1033).
+- Add Korean and Turkish, and options that are off by default: keep CarPlay in the launcher card, navigation prompts that ask for audio focus, calls at the call's own rate and an interface for Existing Wi-Fi; send ECARX wheel speed and gear; accept lane guidance; and harden DiPlay against oversized or forged input from other devices and apps (#1105, #999, #1052, #1051, #898, #1113, #1089, #1028, #1122, #1123, #1125–#1129, #1131–#1144).
+
+See [0.2.22 release notes](docs/RELEASE-NOTES-0.2.22.md) for contribution links and limits, and [validation](docs/VALIDATION.md) for checks. Full-release vehicle acceptance is not claimed.
+
+# DiPlay 0.2.21 — 2026-10-17
+
+- Fix the 0.2.20 music lag by counting the music still waiting to be decoded in the clock adjustment, and bring music back after an interruption when the iPhone plays again (#814, #804).
+- Let wired CarPlay recover by itself: retry when the iPhone never opens its session, stop waiting forever for an ignored mode request, keep an attempt that recovered before its retry, and lower navigation guidance in the audio itself (#907, #841, #876).
+- Stop DiPlay closing when the software Opus encoder fails a check, name the wireless startup failure and refused permissions on the CarPlay screen, stop re-asking about the car hotspot on Android 13, find car hotspots on VLAN interfaces, wait for Bluetooth that is turning on, and save the CarPlay menu settings when an unused hotspot is empty (#866, #824, #795, #893, #885, #822, #853).
+- On BYD head units, hand the dashboard back to the car when CarPlay ends, survive the DiYou desktop card, warn again about a car hotspot that stays off, open BYD's own screens on DiLink 1.0, hide the call popup on Android 10+, clarify the call key setting and offer DiLink 7.0's split screen (#909, #827, #794, #845, #842, #875).
+- Install on Android 7.0, add Italian, and add options that are off by default: temporary system bars, black rounded corners, a play/pause wheel key, double press for Siri, car hotspot import, a home-screen bubble, the car's own music rhythm and music data for it (#847, #863, #818, #811, #823, #813, #769, #844, #695, #908).
+- Record more in the diagnostic report: DiPlay's own frames in the crash record, the USB devices Android lists while waiting for the iPhone, a wheel-speed line each minute, and the USB network traffic when the iPhone never opens CarPlay; note screenshots under screen turning (#827, #830, #862, #907, #864).
+
+See [0.2.21 release notes](docs/RELEASE-NOTES-0.2.21.md) for contribution links and limits, and [validation](docs/VALIDATION.md) for checks. Full-release vehicle acceptance is not claimed.
 
 # DiPlay 0.2.20 — 2026-10-15
 

@@ -18,9 +18,9 @@ android {
         resValue("bool", "config_ultra_transparent_header", providers.gradleProperty("ultraTransparentHeader").orElse("false").get())
         minSdk = 25
         targetSdk = 37
-        versionCode = 49
-        // Upstream base remains 0.2.20; this is a separately distributed C11 development build.
-        versionName = "0.2.20-c11.20261101.1"
+        versionCode = 50
+        // Upstream base is 0.2.22; this is a separately distributed C11 development build.
+        versionName = "0.2.22-c11.20261101.1"
 
     }
 

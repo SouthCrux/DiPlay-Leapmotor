@@ -1,5 +1,20 @@
 # Leapmotor C11 EV 2024: investigación e integración
 
+## Integración local con upstream 0.2.22 — 01/11/2026
+
+La rama `leapmotor/c11-upstream-0.2.22-20261101` se prepara en un worktree aislado,
+con un commit de recuperación que contiene los cambios C11 hasta el build 49,
+antes del merge de la etiqueta oficial `v0.2.22`. La carpeta de trabajo original
+permanece intacta. El candidato resultante es `0.2.22-c11.20261101.1`, build 50.
+
+Se preservan la barra Clara, telemetría, controles Bluetooth nativos, Portón,
+ruta física del cuadro, recuperación tras el reinicio y comandos de tema del
+build 49. Se incorporan la recuperación de UI/sesión de upstream y su espera del
+primer fotograma central antes de activar el cuadro. Las traducciones C11 se
+completan para los idiomas nuevos. No se incluyen claves ni recursos privados en
+el código versionado. El candidato no se instala ni publica como parte del merge;
+la validación del coche corresponde al propietario. **Android Auto no probado.**
+
 Fecha: 2026-10-16. Base inspeccionada: DiPlay `1b1ac5f2`.
 Rama: `leapmotor/c11-integration`. Original: `https://github.com/shihabal3amri/DiPlay.git`
 como `upstream`. La investigación inicial fue local; después se autorizó un

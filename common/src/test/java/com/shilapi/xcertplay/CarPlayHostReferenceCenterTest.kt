@@ -12,6 +12,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.shilapi.xcertplay.airplay.AirPlayConfig
 import com.shilapi.xcertplay.airplay.AirPlayIdentity
+import com.shilapi.xcertplay.airplay.AirPlaySession
 import com.shilapi.xcertplay.airplay.UltraReferenceCenterHost
 import com.shilapi.xcertplay.airplay.UltraThemeBinding
 import com.shilapi.xcertplay.airplay.UltraThemeDisplay
@@ -146,6 +147,16 @@ class CarPlayHostReferenceCenterTest {
         val cluster = mock(Surface::class.java)
         AirPlayPersistence.saveClusterMapEnabled(activity, true)
         set("clusterSurface", cluster)
+        invoke("attachSurface", Surface::class.java, surface)
+        verify(sink).setSurface(110, surface)
+        verify(sink, never()).setSurface(111, cluster)
+        verify(sink, never()).setSurface(111, surface)
+
+        // Upstream 0.2.22 waits for the main picture before attaching the alternate output.
+        val session = mock(AirPlaySession::class.java)
+        `when`(session.hasRenderedMainFrame).thenReturn(true)
+        set("activeAirPlaySession", session)
+        clearInvocations(sink)
         invoke("attachSurface", Surface::class.java, surface)
         verify(sink).setSurface(110, surface)
         verify(sink).setSurface(111, cluster)

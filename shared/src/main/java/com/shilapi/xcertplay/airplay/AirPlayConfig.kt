@@ -104,6 +104,13 @@ data class AirPlayConfig(
     val ultraHandshake: Boolean = false,
     /** Resource and logical displays must be configured together for a themed handshake probe. */
     val ultraThemeBinding: UltraThemeBinding? = null,
+    /**
+     * Calls arrive as a narrowband vocoder stream (8 kHz on the test car, `vocoderInfo`), which DiPlay otherwise
+     * plays through a 48 kHz Opus stream. When set, the call's output offer is PCM at 8, 16, 24 and 32 kHz only,
+     * so the iPhone picks the call's own rate, as the stock CarPlay receiver does. The call's microphone offer is
+     * restricted the same way, because the iPhone picks one format for both directions.
+     */
+    val callAtCallRate: Boolean = false,
 ) {
     init { require(!ultraHandshake || ultraThemeBinding?.matches(this) != false) }
 }

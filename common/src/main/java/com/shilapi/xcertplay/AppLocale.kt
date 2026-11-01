@@ -22,8 +22,12 @@ object AppLocale {
     const val SPANISH = "es"
     const val UKRAINIAN = "uk"
     const val JAPANESE = "ja"
+    const val KOREAN = "ko"
 
-    val ALL = listOf(SYSTEM, ENGLISH, SIMPLIFIED_CHINESE, TRADITIONAL_CHINESE, ARABIC, RUSSIAN, SPANISH, UKRAINIAN, JAPANESE)
+    const val ITALIAN = "it"
+    const val TURKISH = "tr"
+
+    val ALL = listOf(SYSTEM, ENGLISH, SIMPLIFIED_CHINESE, TRADITIONAL_CHINESE, ARABIC, RUSSIAN, SPANISH, UKRAINIAN, JAPANESE, KOREAN, ITALIAN, TURKISH)
 
     private const val PREFS = "diplay"
     private const val KEY_LANGUAGE = "app_language"
@@ -137,6 +141,9 @@ object AppLocale {
         SPANISH -> "Español"
         UKRAINIAN -> "Українська"
         JAPANESE -> "日本語"
+        KOREAN -> "한국어"
+        ITALIAN -> "Italiano"
+        TURKISH -> "Türkçe"
         else -> language
     }
 
@@ -149,6 +156,9 @@ object AppLocale {
         SPANISH -> Locale("es")
         UKRAINIAN -> Locale("uk")
         JAPANESE -> Locale.JAPANESE
+        KOREAN -> Locale.KOREAN
+        ITALIAN -> Locale.ITALIAN
+        TURKISH -> Locale("tr")
         else -> null
     }
 }
