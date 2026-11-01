@@ -24,6 +24,24 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [29], qualifiers = "mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class C11VehicleSidebarTest {
+    @Test fun configuredGateStaysVisibleWhenCheckingOrDisconnected() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        try {
+            val sidebar = C11VehicleSidebar(controller.get())
+            val gate = org.robolectric.util.ReflectionHelpers.getField<android.widget.TextView>(sidebar, "gate")
+            val block = gate.parent as View
+            assertEquals(View.GONE, block.visibility)
+            for (state in com.shilapi.xcertplay.vehicle.C11RefossGate.Status.entries) {
+                sidebar.update(null, null, gateStatus = state)
+                assertEquals("Configured gate must not disappear: $state", View.VISIBLE, block.visibility)
+                assertTrue(gate.text.isNotEmpty())
+                if (state != com.shilapi.xcertplay.vehicle.C11RefossGate.Status.READY)
+                    assertNotEquals(controller.get().getString(com.shilapi.xcertplay.host.R.string.c11_gate_double_click), gate.text.toString())
+            }
+            sidebar.update(null, null)
+            assertEquals(View.GONE, block.visibility)
+        } finally { controller.pause().stop().destroy() }
+    }
     @Test fun reservedViewportFillsTheHeightAndNeverReceivesSidebarTouches() {
         val viewport = CarPlayVideoLayout.fit(1760, 1176, 1760, 1176)
         assertEquals(0f, viewport.top, 0.01f)
@@ -52,7 +70,8 @@ class C11VehicleSidebarTest {
             root.addView(sidebar, FrameLayout.LayoutParams(sidebarWidth, -1, Gravity.RIGHT))
             val pressures = Wheel.entries.zip(listOf(233, 228, 229, 231)).toMap()
             val temperatures = Wheel.entries.zip(listOf(19, 20, 21, 22)).toMap()
-            sidebar.update(VehicleStatusSnapshot(160, null, 60.0, null, null, null, null), 15.5, pressures, temperatures, 13.76)
+            sidebar.update(VehicleStatusSnapshot(160, null, 60.0, null, null, null, null), 15.5, pressures, temperatures, 13.76,
+                gateStatus = com.shilapi.xcertplay.vehicle.C11RefossGate.Status.UNREACHABLE)
             val consumption = org.robolectric.util.ReflectionHelpers.getField<android.widget.TextView>(sidebar, "consumption")
             assertEquals(View.VISIBLE, consumption.visibility)
             assertTrue(consumption.text.toString().contains("kWh/100 km"))
@@ -104,6 +123,14 @@ class C11VehicleSidebarTest {
                 root.draw(Canvas(bitmap))
                 val output = File("build/reports/c11-sidebar").apply { mkdirs() }
                 File(output, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                sidebar.update(VehicleStatusSnapshot(160, null, 60.0, null, null, null, null), 15.5, pressures, temperatures, 13.76,
+                    gateStatus = com.shilapi.xcertplay.vehicle.C11RefossGate.Status.UNREACHABLE)
+                root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+                root.layout(0, 0, width, height)
+                sidebar.scrollTo(0, sidebar.getChildAt(0).height)
+                root.draw(Canvas(bitmap))
+                File(output, "$name-gate.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             } finally { bitmap.recycle() }
         } finally {
             @Suppress("DEPRECATION")

@@ -892,4 +892,19 @@
     <string name="settings_c11_ultra_title">Prototipo de CarPlay Ultra (experimental)</string>
     <string name="settings_c11_ultra_switch">Probar negociación Ultra</string>
     <string name="settings_c11_ultra_description">Prueba la negociación Ultra con el iPhone usando un paquete de recursos de referencia de Apple. La interfaz Ultra completa aún no está disponible. Se aplica al reconectar CarPlay.</string>
+    <string name="c11_sidebar_gate">Portón</string>
+    <string name="c11_gate_double_click">Doble clic</string>
+    <string name="c11_gate_sent">Activación de Portón enviada</string>
+    <string name="c11_gate_unconfirmed">Resultado de Portón sin confirmar. Comprobalo antes de repetir.</string>
+    <string name="settings_cluster_zoom_description">Solicita ajustar el zoom del mapa del cuadro en la sesión actual. La app de navegación controla la perspectiva. No reconecta CarPlay.</string>
+    <string name="settings_cluster_zoom_in">Acercar mapa del cuadro</string>
+    <string name="settings_cluster_zoom_out">Alejar mapa del cuadro</string>
+    <string name="settings_cluster_zoom_requested">Ajuste de zoom solicitado</string>
+    <string name="settings_cluster_zoom_unavailable">El mapa del cuadro no está disponible en esta sesión</string>
+    <string name="c11_gate_waiting_carplay">Conectá CarPlay</string>
+    <string name="c11_gate_checking">Comprobando…</string>
+    <string name="c11_gate_waiting_button">Inicializando botón…</string>
+    <string name="c11_gate_no_wifi">Sin Wi-Fi de casa</string>
+    <string name="c11_gate_unreachable">Sin conexión al portón</string>
+    <string name="c11_gate_sending">Enviando…</string>
 </resources>

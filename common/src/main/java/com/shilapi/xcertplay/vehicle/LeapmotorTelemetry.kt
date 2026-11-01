@@ -19,6 +19,7 @@ import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpChargingState
 import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpDoorState
 import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpSubsystemState
 import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpMeasurementsState
+import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpCustomButton
 import java.util.Collections
 import java.util.IdentityHashMap
 
@@ -56,6 +57,9 @@ object LeapmotorTelemetry {
     private var app: Context? = null
     private var connectionTimeout: Runnable? = null
     private val voiceListeners = IdentityHashMap<Any, (ByteArray?, Long) -> Unit>()
+    private val customListeners = IdentityHashMap<Any, (ByteArray?, Long) -> Unit>()
+    private var customIdle = false
+    private var customButtonObservation = "NONE"
     @Volatile private var sourceStatus = "STOPPED"
     private val lastExterior = ReportedExteriorObservation(SystemClock::elapsedRealtime)
 
@@ -113,6 +117,7 @@ object LeapmotorTelemetry {
         return "C11 OEM telemetry: source=$sourceStatus reading=${if (snapshot == null) "UNAVAILABLE" else "AVAILABLE"}" +
             (snapshot?.let { " socPercent=${it.batteryPercent} rangeKm=${it.rangeKm}" } ?: "") +
             "\nfreshnessPolicy=LAST_RECEIVED_STATE originTimestamp=UNKNOWN silenceTimeoutMs=60000" +
+            "\nC11 custom wheel button: observation=$customButtonObservation consumers=${customListeners.size}" +
             "\ncharging=UNKNOWN rangeWarning=UNKNOWN maxRangeKm=UNKNOWN" +
             "\nC11 charging readonly: source=$sourceStatus semantics=UNVERIFIED originTimestamp=UNKNOWN silenceTimeoutMs=60000" +
             charging.readings().joinToString(separator = "") { "\n${chargingDiagnostic(it)}" } +
@@ -174,6 +179,8 @@ object LeapmotorTelemetry {
             tireFlags.clear()
             tireFlagsLog.reset()
             sourceStatus = "BINDING"
+            customIdle = false
+            customButtonObservation = "NONE"
             val connection = object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     if (binding !== this) return
@@ -203,11 +210,25 @@ object LeapmotorTelemetry {
                     val tireFlagsEpoch = tireFlags.beginSource()
                     tireFlagsLog.reset()
                     voiceListeners.values.toList().forEach { it(null, -1L) }
+                    customIdle = false
+                    customListeners.values.toList().forEach { it(null, -1L) }
                     connectionTimeout?.let(main::removeCallbacks)
                     connectionTimeout = null
                     val replies = Messenger(Handler(Looper.getMainLooper()) { message ->
                         if (binding === this && message.what == LeapmotorTelemetryService.EVENT) {
                             val fields = message.data
+                            if (LeapmotorSomeIpCustomButton.accepts(fields.getInt("service"), fields.getInt("instance"),
+                                    fields.getInt("group", -1), fields.getInt("event"))) {
+                                val click = LeapmotorSomeIpCustomButton.decode(fields.getInt("service"),
+                                    fields.getInt("instance"), fields.getInt("group", -1), fields.getInt("event"),
+                                    fields.getByteArray("payload"))
+                                customButtonObservation = click?.name ?: "UNRECOGNIZED"
+                                val payload = fields.getByteArray("payload")
+                                customIdle = payload?.contentEquals(byteArrayOf(48)) == true
+                                android.util.Log.i("DiPlay-C11-Custom", "observation=$customButtonObservation byte=${payload?.singleOrNull()?.toInt() ?: -1} listeners=${customListeners.size}")
+                                customListeners.values.toList().forEach { it(payload?.copyOf(), fields.getLong("receivedAt", -1L)) }
+                                return@Handler true
+                            }
                             if (subsystems.receive(subsystemEpoch, fields.getInt("service"), fields.getInt("instance"),
                                 fields.getInt("group", -1), fields.getInt("event"), fields.getByteArray("payload"),
                                 fields.getLong("receivedAt", -1L))) {
@@ -374,6 +395,9 @@ object LeapmotorTelemetry {
     }
 
     internal fun stopListeningForVoiceButton(owner: Any) { voiceListeners.remove(owner) }
+    internal fun customButtonIdleKnown() = sourceStatus == "CONNECTED" && customIdle
+    internal fun listenForCustomButton(owner: Any, listener: (ByteArray?, Long) -> Unit) { customListeners[owner] = listener }
+    internal fun stopListeningForCustomButton(owner: Any) { customListeners.remove(owner) }
 
     fun provider(context: Context): ManagedVehicleStatusProvider {
         val allowed = enabled(context)
@@ -416,6 +440,9 @@ object LeapmotorTelemetry {
         tireFlags.clear()
         tireFlagsLog.reset()
         voiceListeners.values.toList().forEach { it(null, -1L) }
+        customButtonObservation = "NONE"
+        customIdle = false
+        customListeners.values.toList().forEach { it(null, -1L) }
         runCatching { app?.unbindService(connection) }
         app = null
         // No automatic restart loop after a native crash. A new acquire retries explicitly.

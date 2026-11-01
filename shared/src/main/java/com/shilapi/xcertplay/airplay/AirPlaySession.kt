@@ -104,7 +104,9 @@ class AirPlaySession(
     private var eventSocket: Socket? = null
     private var eventCipher: ControlCipher? = null
     private var eventCseq = 0
+    private var lastNightMode: Boolean? = null
     private var pendingNightMode: Boolean? = null
+    private var pendingClusterNightMode: Boolean? = null
     private val firstTouchSendLogged = AtomicBoolean(false)
     private val touchSendFailureLogged = AtomicBoolean(false)
     private val ntp = NtpClock()
@@ -282,11 +284,16 @@ class AirPlaySession(
         }
     }
 
-    private fun beginClusterContent() = synchronized(clusterContentLock) {
-        val stream = ++clusterStreamSetups
-        val initial = config.cluster?.initialUrl
-        clusterContent = ClusterContent(stream, requestedClusterUrl, initial)
-        clusterStream = stream
+    private fun beginClusterContent() {
+        synchronized(clusterContentLock) {
+            val stream = ++clusterStreamSetups
+            val initial = config.cluster?.initialUrl
+            clusterContent = ClusterContent(stream, requestedClusterUrl, initial)
+            clusterStream = stream
+        }
+        // The alternate screen can start after the main screen has consumed its night-mode update.
+        // Queue the latest choice for this new stream; send only after its SETUP response.
+        synchronized(eventWriteLock) { pendingClusterNightMode = lastNightMode }
     }
 
     private fun clearClusterContent() = synchronized(clusterContentLock) {
@@ -448,17 +455,30 @@ class AirPlaySession(
     }
 
     fun setNightMode(night: Boolean): Boolean = synchronized(eventWriteLock) {
+        if (closed.get()) return false
+        lastNightMode = night
         pendingNightMode = night
+        pendingClusterNightMode = night
         sendPendingNightModeLocked()
     }
 
     private fun sendPendingNightModeLocked(): Boolean {
-        val night = pendingNightMode ?: return true
-        val sent = sendCommandLocked(
-            linkedMapOf("type" to "setNightMode", "params" to linkedMapOf("nightMode" to night)),
-        )
-        if (sent) pendingNightMode = null
-        return sent
+        pendingNightMode?.let { night ->
+            // Keep the legacy main-display command unchanged for older iPhones/head units.
+            if (!sendCommandLocked(linkedMapOf("type" to "setNightMode",
+                    "params" to linkedMapOf("nightMode" to night)))) return false
+            pendingNightMode = null
+        }
+        if (!suppressesConventionalCluster && config.cluster != null && clusterStream > 0) {
+            pendingClusterNightMode?.let { night ->
+                // Alternate screens have an independent night mode. Address the negotiated screen,
+                // rather than relying on the unscoped main-display update to change its map.
+                if (!sendCommandLocked(linkedMapOf("type" to "setNightMode",
+                        "params" to linkedMapOf("uuid" to clusterDisplayUuid, "nightMode" to night)))) return false
+                pendingClusterNightMode = null
+            }
+        }
+        return true
     }
 
     private fun sendHidReport(uid: Int, report: ByteArray): Boolean =
@@ -667,6 +687,7 @@ class AirPlaySession(
             Log.w(TAG, "airplay SETUP response callback failed", error)
         }
         reapplyClusterContent()
+        synchronized(eventWriteLock) { sendPendingNightModeLocked() }
     }
 
     private fun debugLog(message: String, uiVisible: Boolean = true) {
@@ -953,6 +974,8 @@ class AirPlaySession(
             )
             eventCipher = ControlCipher(readKey, writeKey)
             synchronized(eventWriteLock) {
+                pendingNightMode = lastNightMode
+                pendingClusterNightMode = lastNightMode
                 sendPendingNightModeLocked()
             }
             val videoDelivery = videoPlaybackAvailability.setEventReady(true)

@@ -17,6 +17,7 @@ import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpChargingState
 import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpDoorState
 import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpSubsystemState
 import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpMeasurementsState
+import com.shilapi.xcertplay.vehicle.leapmotor.LeapmotorSomeIpCustomButton
 import java.util.concurrent.Executors
 
 /** Owns read-only JNI in a disposable process. Never loads the firmware library in CarPlay. */
@@ -52,7 +53,7 @@ class LeapmotorTelemetryService : Service() {
                     })
                     native.addInfo(SomeipSubInfo().apply {
                         serviceId = 4161; instanceId = 20545
-                        groupIds = intArrayOf(17920); eventIds = intArrayOf(301, 4114) +
+                        groupIds = intArrayOf(17920); eventIds = intArrayOf(301, 4114, LeapmotorSomeIpCustomButton.EVENT) +
                             LeapmotorSomeIpMeasurementsState.eventIds(LeapmotorSomeIpMeasurementsState.Route.CLUSTER)
                     })
                     // OEM LeapCenterManager forwards these QNX strings to the tyre widget.
@@ -86,6 +87,7 @@ class LeapmotorTelemetryService : Service() {
                                 LeapmotorSomeIpSubsystemState.accepts(service, instance, 39171, event) ||
                                 LeapmotorSomeIpMeasurementsState.channel(service, instance, 39171, event) != null) ||
                             service == 4161 && instance == 20545 && (event == 301 || event == 4114 ||
+                                event == LeapmotorSomeIpCustomButton.EVENT ||
                                 LeapmotorSomeIpMeasurementsState.channel(service, instance, 17920, event) != null) ||
                             service == 29185 && instance == 29186 && event in 1109..1116) {
                             val at = SystemClock.elapsedRealtime()

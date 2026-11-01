@@ -995,4 +995,19 @@
     <string name="settings_c11_ultra_title">CarPlay Ultra prototype (experimental)</string>
     <string name="settings_c11_ultra_switch">Test Ultra handshake</string>
     <string name="settings_c11_ultra_description">Tests Ultra session negotiation with the iPhone using an Apple reference resource package. A complete Ultra interface is not available yet. Applies when CarPlay reconnects.</string>
+    <string name="c11_sidebar_gate">Gate</string>
+    <string name="c11_gate_double_click">Double press</string>
+    <string name="c11_gate_sent">Gate activation sent</string>
+    <string name="c11_gate_unconfirmed">Gate result unconfirmed. Check before trying again.</string>
+    <string name="settings_cluster_zoom_description">Requests zoom for the current instrument-cluster map. The navigation app controls perspective. Does not reconnect CarPlay.</string>
+    <string name="settings_cluster_zoom_in">Zoom in cluster map</string>
+    <string name="settings_cluster_zoom_out">Zoom out cluster map</string>
+    <string name="settings_cluster_zoom_requested">Map zoom requested</string>
+    <string name="settings_cluster_zoom_unavailable">Instrument-cluster map is unavailable in this session</string>
+    <string name="c11_gate_waiting_carplay">Connect CarPlay</string>
+    <string name="c11_gate_checking">Checking…</string>
+    <string name="c11_gate_waiting_button">Initializing button…</string>
+    <string name="c11_gate_no_wifi">No home Wi-Fi</string>
+    <string name="c11_gate_unreachable">Gate unavailable</string>
+    <string name="c11_gate_sending">Sending…</string>
 </resources>

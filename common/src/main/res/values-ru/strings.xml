@@ -892,4 +892,19 @@
     <string name="settings_c11_ultra_title">Прототип CarPlay Ultra (экспериментально)</string>
     <string name="settings_c11_ultra_switch">Проверить согласование Ultra</string>
     <string name="settings_c11_ultra_description">Проверяет согласование сеанса Ultra с iPhone с помощью эталонного пакета ресурсов Apple. Полный интерфейс Ultra пока недоступен. Применяется при переподключении CarPlay.</string>
+    <string name="c11_sidebar_gate">Ворота</string>
+    <string name="c11_gate_double_click">Двойное нажатие</string>
+    <string name="c11_gate_sent">Команда воротам отправлена</string>
+    <string name="c11_gate_unconfirmed">Результат не подтверждён. Проверьте перед повтором.</string>
+    <string name="settings_cluster_zoom_description">Запрашивает изменение масштаба карты приборной панели в текущем сеансе. Перспективу задаёт приложение навигации. CarPlay не переподключается.</string>
+    <string name="settings_cluster_zoom_in">Приблизить карту приборной панели</string>
+    <string name="settings_cluster_zoom_out">Отдалить карту приборной панели</string>
+    <string name="settings_cluster_zoom_requested">Изменение масштаба запрошено</string>
+    <string name="settings_cluster_zoom_unavailable">Карта приборной панели недоступна в этом сеансе</string>
+    <string name="c11_gate_waiting_carplay">Подключите CarPlay</string>
+    <string name="c11_gate_checking">Проверка…</string>
+    <string name="c11_gate_waiting_button">Инициализация кнопки…</string>
+    <string name="c11_gate_no_wifi">Нет домашнего Wi-Fi</string>
+    <string name="c11_gate_unreachable">Ворота недоступны</string>
+    <string name="c11_gate_sending">Отправка…</string>
 </resources>

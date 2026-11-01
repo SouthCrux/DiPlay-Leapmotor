@@ -941,4 +941,19 @@
     <string name="settings_c11_ultra_title">نموذج CarPlay Ultra (تجريبي)</string>
     <string name="settings_c11_ultra_switch">اختبار اتصال Ultra</string>
     <string name="settings_c11_ultra_description">يختبر تفاوض جلسة Ultra مع iPhone باستخدام حزمة موارد مرجعية من Apple. واجهة Ultra الكاملة غير متاحة بعد. يسري عند إعادة اتصال CarPlay.</string>
+    <string name="c11_sidebar_gate">البوابة</string>
+    <string name="c11_gate_double_click">ضغطة مزدوجة</string>
+    <string name="c11_gate_sent">تم إرسال أمر تشغيل البوابة</string>
+    <string name="c11_gate_unconfirmed">نتيجة تشغيل البوابة غير مؤكدة. تحقّق قبل المحاولة مجددًا.</string>
+    <string name="settings_cluster_zoom_description">يطلب ضبط تكبير خريطة لوحة العدادات في الجلسة الحالية. يتحكم تطبيق الملاحة في المنظور. لا يعيد توصيل CarPlay.</string>
+    <string name="settings_cluster_zoom_in">تكبير خريطة لوحة العدادات</string>
+    <string name="settings_cluster_zoom_out">تصغير خريطة لوحة العدادات</string>
+    <string name="settings_cluster_zoom_requested">تم طلب ضبط تكبير الخريطة</string>
+    <string name="settings_cluster_zoom_unavailable">خريطة لوحة العدادات غير متاحة في هذه الجلسة</string>
+    <string name="c11_gate_waiting_carplay">اتصل بـ CarPlay</string>
+    <string name="c11_gate_checking">جارٍ التحقق…</string>
+    <string name="c11_gate_waiting_button">جارٍ تهيئة الزر…</string>
+    <string name="c11_gate_no_wifi">لا توجد شبكة المنزل</string>
+    <string name="c11_gate_unreachable">البوابة غير متاحة</string>
+    <string name="c11_gate_sending">جارٍ الإرسال…</string>
 </resources>

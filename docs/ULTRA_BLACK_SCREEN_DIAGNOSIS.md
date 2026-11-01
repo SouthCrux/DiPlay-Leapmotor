@@ -1,5 +1,35 @@
 # C11: pantalla negra, bloqueos y fallback a CarPlay común
 
+## Retorno de cámara 360: candidata45, 2026-10-24
+
+El propietario vuelve a confirmar: cámara360 toma el primer plano, DiPlay pierde
+foco y al regresar queda negro. Los ocho logs de sesión se copiaron con la app
+cerrada, sin usar SystemUpdate. `diplay.log:332` registra a las13:49:52.817
+`Ultra reference failed reason=FIRST_FRAME_TIMEOUT; rebuilding ordinary CarPlay`.
+Esto acredita el motivo del fallback, no la causa completa de la falta de imagen.
+La captura de logcat disponible no contenía eventos filtrables posteriores.
+
+Se identificó una brecha de progreso en `UltraVideoPipeline`: al reactivar el host
+se solicita un redibujado, pero los polls siguientes solo despertaban composición
+cuando generaban mensajes salientes. Si el primer intento encuentra una escena
+todavía no disponible y no llega otro frame o mensaje, no hay un nuevo intento.
+Las pruebas anteriores de escena estática pedían el segundo redibujado de forma
+explícita y no cubrían esa ausencia de mensajes.
+
+La candidata45 añade `UltraOutputRecovery`: los polls existentes solicitan
+redibujado mientras el host tenga superficie visible y falte una publicación
+Canvas aceptada en esa activación. Reutiliza la última imagen y su timestamp;
+no añade temporizadores, no conserva superficies propias, no cambia foco,
+configuración de red ni negociación. Una aceptación detiene estos reintentos;
+pausa o superficie ausente los suspende. Se mantienen los tokens de activación
+y el watchdog que acota fallos persistentes. La prueba con el trabajador real
+reproduce pausa, primer dibujo no disponible y recuperación sin un segundo frame
+ni mensajes salientes. Falta verificarlo físicamente con cámara360: no se declara
+resuelta la regresión del coche solo con esta corrección local.
+
+Evidencia privada: `closed-session-logs-20261024T173350Z/manifest.json` y
+`session-markers.jsonl`, dentro de `.private/c11/ultra-20261022/`.
+
 ## Prueba posterior: recuperación insuficiente, 2026-10-22
 
 La APK completa `c469c29a` se instaló después por autorización del propietario,

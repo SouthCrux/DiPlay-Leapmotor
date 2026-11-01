@@ -2152,6 +2152,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 render()
             }
             if (clusterMapEnabled) {
+                clusterMapZoomControls(card)
                 clusterSpeedometerControls(card)
                 clusterMusicControls(card)
                 toggle(card, getString(R.string.center_map_card),
@@ -4016,6 +4017,23 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(SETTINGS_BLOCK_GAP_DP) })
         }
         card.addView(label(getString(R.string.settings_assistant_launch_limit), 14, MUTED))
+    }
+
+    internal var clusterZoomRequest: (Boolean) -> Boolean = { zoomIn ->
+        CarPlayBackgroundSession.snapshot()?.controller?.zoomDashboardMap(zoomIn) == true
+    }
+
+    private fun clusterMapZoomControls(card: LinearLayout) {
+        if (!com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this)) return
+        card.addView(label(getString(R.string.settings_cluster_zoom_description), 14, MUTED))
+        for ((title, zoomIn) in listOf(R.string.settings_cluster_zoom_in to true, R.string.settings_cluster_zoom_out to false)) {
+            card.addView(button(getString(title), false) {
+                val queued = clusterZoomRequest(zoomIn)
+                android.widget.Toast.makeText(this,
+                    if (queued) R.string.settings_cluster_zoom_requested else R.string.settings_cluster_zoom_unavailable,
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(SETTINGS_BLOCK_GAP_DP) })
+        }
     }
 
     // Map zoom only works where the dashboard map card used to show these controls.

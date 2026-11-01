@@ -262,6 +262,129 @@ conectado el proveedor EV nuevo ni implementado HVAC.
 
 ## Salida experimental al recuadro de navegación del cuadro
 
+### Perspectiva y vista general: revisión del 25/10/2026
+
+Las fotografías aportadas muestran una vista del recorrido desde arriba en el cuadro,
+con el destino visible, y una vista cercana en perspectiva en la pantalla central.
+Las distancias restantes de ambas fotografías son distintas: no son una captura
+sincronizada que permita atribuir una transición concreta a DiPlay.
+
+El C11 recibe el mapa secundario tipo 111 (`maps:/car/instrumentcluster/map`) en
+`LeapmotorClusterMapOverlay`, mediante un `SurfaceView` que ocupa el recuadro 720×720.
+No hay transformación de inclinación ni una conversión local de 3D a 2D en esa ruta.
+La cámara y el contenido se dibujan en la aplicación de navegación del iPhone. La
+[documentación de Apple sobre el cuadro](https://developer.apple.com/videos/play/wwdc2022/10016/)
+describe una escena independiente de la aplicación y delegados para los controles
+de zoom y las áreas seguras.
+
+Existe una orden de zoom dirigida al UUID del cuadro: `changeMapZoomLevel`, expuesta
+por `CarPlayController.zoomDashboardMap`. No se identificó en el código inspeccionado
+una orden confirmada para forzar la inclinación 3D. El siguiente contraste debe pedir
+un acercamiento del mapa secundario y observar si Maps vuelve al seguimiento cercano;
+un cambio de zoom no se considera una solución 3D validada. No se altera por esta
+hipótesis la ruta del display, el tamaño del stream ni las tarjetas ya aceptadas.
+La revisión se hizo sin usar la pantalla ni enviar comandos al coche, que estaba
+reservado para otra modificación con SystemUpdate.
+
+El candidato 47 añade «Acercar mapa del cuadro» y «Alejar mapa del cuadro» en
+Avanzado, dentro de la tarjeta existente del mapa del cuadro cuando está habilitado.
+Cada pulsación solicita un paso de zoom para la sesión actual; abrir los ajustes
+no envía órdenes. No requiere reconectar ni cambia la geometría o las posiciones
+de las tarjetas. Se verificaron capturas locales compactas y amplias con letra
+grande, incluida una captura RTL, y pasaron las comprobaciones Android completas.
+La versión 47 se instaló posteriormente por ADB, con autorización del propietario.
+La respuesta real de Maps a estos controles y la perspectiva del mapa siguen
+pendientes de prueba en el coche.
+
+### Recuperación de la ruta tras reiniciar: revisión del 27/10/2026
+
+El propietario volvió a informar que el cuadro no mostraba contenido. La versión
+47 renovaba la ruta específica del arranque una sola vez en `onCreate`: una falta
+temporal de acceso ADB o una pantalla todavía no disponible dejaba esa ruta sin
+renovar durante el resto de la actividad. Esto es una debilidad reproducible de
+la recuperación, pero no demuestra la causa única del intento físico sin registros.
+
+El candidato 48 comprueba la ruta al reanudar el host y reintenta su medición con
+esperas de 1, 2, 4, 8, 16 y hasta 30 segundos mientras el host está visible. Los
+eventos de aparición o cambio de pantalla también pueden iniciar la comprobación.
+Solo se permite una medición simultánea; al pausar o destruir el host se cancelan
+los reintentos y una respuesta tardía no restaura una ventana oculta. Se conservan
+las comprobaciones de firmware, arranque, identidad física `local:131`, dimensiones
+y modo. No se infieren IDs lógicos ni se modifica el recuadro o las tarjetas.
+
+Si la ruta queda verificada después de negociar un stream virtual, se conserva el
+comportamiento existente de reconectar CarPlay para solicitar el stream del cuadro.
+El nuevo coordinador no actúa en los otros perfiles de coche. La validación física
+sigue pendiente y no debe darse el mapa por recuperado solo por compilar.
+
+Las comprobaciones completas del candidato combinado con Portón pasaron: 3753
+pruebas, sin fallos ni errores y 46 omitidas, lint y compilaciones. Los tres casos
+nuevos del coordinador cubren disponibilidad tardía, cancelación al ocultar el host,
+ausencia de mediciones simultáneas y espera máxima entre reintentos. El propietario autorizó después la instalación y ADB confirmó la versión 48 en
+el usuario 10. Se conservó la configuración privada de Portón. No se enviaron
+órdenes al accesorio; falta validar la proyección y el botón en ejecución.
+
+### Mapa recibido y conflicto con la copia de Amap: observación posterior
+
+En la sesión posterior de la versión 48 se verificó la ruta del arranque 2856 a
+`local:131`, display lógico 2. El iPhone negoció el stream 111 a 720×720 y se
+registraron fotogramas decodificados a unos 30 fps. Tras reabrir DiPlay se obtuvo
+`cluster buffer sample result=SUCCESS content=VARIED`; una captura privada de
+la composición Android mostró el mapa de Waze dentro del recuadro esperado. Esto
+no contradice el informe del propietario: el cuadro físico seguía en una página
+Amap con «Iniciando», sin su opción adicional de proyección. La captura Android
+no prueba qué página está mostrando la composición física del cuadro.
+
+La aplicación OEM de navegación se había actualizado de 2611 a 3000 el 26/10.
+Además, `com.leapmotor.autonavi` y la copia `com.santiago.amap.oemuy` registraban
+ambas `leapmotor.autonavi.ThirdActivity`. La resolución devolvió
+`com.android.car.activityresolver/.CarResolverActivity`; los registros muestran
+intentos de apertura de esa acción en display 2 desviados a ese selector. Los
+manifiestos privados confirman que ambas DashboardActivity son no exportadas.
+La apertura directa desde shell fue rechazada; no se intentó eludir ese permiso.
+
+El conflicto del registro es concreto, pero su relación completa con la página
+física «Iniciando» necesita contraste. La corrección debe aislar la acción de la
+copia y hacer explícitas sus aperturas internas, preservando los componentes
+privados. No se desinstaló, deshabilitó ni modificó ninguna de las dos apps OEM,
+no se usó SystemUpdate y no se atribuye este conflicto a traducir una etiqueta.
+Los manifiestos, la captura y el informe permanecen en `.private`.
+
+### Tema automático del mapa del cuadro: revisión del 01/11/2026
+
+El propietario mostró una fotografía diurna con la navegación central clara y el
+mapa del cuadro oscuro. Solicitó que el cuadro siga automáticamente el día/noche
+del coche. El modo existente `Sistema` de DiPlay toma ese estado de la configuración
+Android del vehículo; no se añade un selector, reloj ni sensor independiente.
+
+Apple documenta que cada stream del cuadro tiene un modo nocturno independiente y
+que la apariencia del mapa puede diferir de la interfaz:
+[WWDC19](https://developer.apple.com/videos/play/wwdc2019/252/) y
+[WWDC23](https://developer.apple.com/videos/play/wwdc2023/10150/).
+El envío anterior era solamente `setNightMode` sin destino y descartaba el valor
+después de escribirlo, aunque el stream secundario todavía no hubiera arrancado.
+
+El candidato 49 conserva el envío general utilizado por la central y añade un
+`setNightMode` con el UUID negociado del cuadro y el mismo valor día/noche. Retiene
+el último estado para enviarlo después del SETUP del stream 111, al recrearse ese
+stream y al restablecerse el canal de eventos. Las escrituras pendientes conservan
+solo el valor más reciente. No se reinicia CarPlay ni se altera el vídeo, la
+geometría del recuadro o las tarjetas para cambiar el tema. La aceptación de la
+orden dirigida por el iPhone y el resultado visual requieren validación física;
+una escritura correcta no demuestra que la app de mapas haya cambiado de tema.
+
+El candidato 49 pasó las comprobaciones Android completas ejecutadas localmente
+en la Mac del propietario: 3756 pruebas, sin fallos ni errores y 46 omitidas,
+lint y compilaciones. Tres pruebas nuevas inspeccionan los comandos cifrados
+emitidos para el arranque tardío del cuadro, los cambios día/noche y la recreación
+del stream, además de mantener el comando anterior en sesiones con una pantalla.
+La versión 49 se instaló después con autorización del propietario. Se verificó el
+número de versión y que el ajuste no tiene anulación manual (predeterminado
+`Sistema`); el coche informó `notnight` en ese momento. Se abrió DiPlay. El
+propietario indicó que realizará personalmente las pruebas del coche, por lo que
+se detuvieron las comprobaciones en el vehículo. El cambio visual sigue pendiente
+de su validación.
+
 La captura de la capa Android física `local:131` muestra un canvas 1920×720 con
 un recuadro OEM de mapas en x=1200, y=0, ancho=720, alto=720. No contiene los
 indicadores que el usuario ve en las otras capas del cuadro; la captura por sí

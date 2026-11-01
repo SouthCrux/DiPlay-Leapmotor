@@ -624,6 +624,27 @@ class CarPlayHostActivity : ComponentActivity() {
     private val shuttingDown = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val foregroundHotspotRecovery by lazy { ForegroundHotspotRecovery.forC11(this) }
+    private var c11RefossGate: com.shilapi.xcertplay.vehicle.C11RefossGate? = null
+    private fun startC11RefossGate() {
+        if (c11RefossGate == null) {
+            c11RefossGate = com.shilapi.xcertplay.vehicle.C11RefossGate.load(this,
+                session = { activeAirPlaySession },
+                allowed = { !isDestroyed && !shuttingDown.get() && !menuOpen && !inCall(this) },
+                changed = { refreshUltraVehicleUi() },
+                result = { accepted ->
+                    android.widget.Toast.makeText(this, if (accepted) R.string.c11_gate_sent
+                        else R.string.c11_gate_unconfirmed, android.widget.Toast.LENGTH_LONG).show()
+                },
+                restore = {
+                    startActivity(Intent(this, CarPlayHostActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                })
+        }
+        c11RefossGate?.let { gate ->
+            com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.listenForCustomButton(this, gate::receive)
+            gate.setVisible(true)
+        }
+    }
     private val c11VoiceButton by lazy {
         com.shilapi.xcertplay.vehicle.LeapmotorVoiceButton(
             eligible = { activeAirPlaySession != null && hostAppearanceResumed && !inCall(this) },
@@ -898,9 +919,37 @@ class CarPlayHostActivity : ComponentActivity() {
         }
     }
 
-    private fun renewC11ClusterRoute() {
-        if (!com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this) ||
-            !AirPlayPersistence.loadClusterMapEnabled(this) || LeapmotorClusterDisplay.findDisplay(this) != null) return
+    private var c11RouteRetry: Runnable? = null
+    private val c11ClusterRouteRecovery by lazy {
+        C11ClusterRouteRecovery(
+            eligible = {
+                !isDestroyed && !isFinishing &&
+                    com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this) &&
+                    Build.FINGERPRINT == LeapmotorClusterDisplay.FINGERPRINT &&
+                    AirPlayPersistence.loadClusterMapEnabled(this)
+            },
+            hasVerifiedRoute = { LeapmotorClusterDisplay.findDisplay(this) != null },
+            renew = ::measureC11ClusterRoute,
+            schedule = { delay, callback ->
+                val task = Runnable { c11RouteRetry = null; callback() }
+                c11RouteRetry = task
+                mainHandler.postDelayed(task, delay)
+            },
+            cancel = {
+                c11RouteRetry?.let { mainHandler.removeCallbacks(it) }
+                c11RouteRetry = null
+            },
+            restored = {
+                ensureClusterPresentation()
+                if (controller != null && !clusterStreamOnDisplay)
+                    reconnectAfterLoss("C11 cluster route renewed after reboot; requesting its stream")
+            },
+        )
+    }
+
+    private fun renewC11ClusterRoute() = c11ClusterRouteRecovery.request()
+
+    private fun measureC11ClusterRoute(complete: () -> Unit) {
         val app = applicationContext
         Thread({
             val renewed = runCatching {
@@ -910,13 +959,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 }
             }.getOrDefault(false)
             runOnUiThread {
-                if (isDestroyed || isFinishing) return@runOnUiThread
-                appendLog("C11 cluster route renewal: verified=$renewed")
-                if (renewed) {
-                    ensureClusterPresentation()
-                    if (controller != null && !clusterStreamOnDisplay)
-                        reconnectAfterLoss("C11 cluster route renewed after reboot; requesting its stream")
-                }
+                if (!isDestroyed && !isFinishing) appendLog("C11 cluster route renewal: verified=$renewed")
+                complete()
             }
         }, "c11-cluster-route").start()
     }
@@ -1197,6 +1241,8 @@ class CarPlayHostActivity : ComponentActivity() {
         }
         WheelKeyService.restoreIfNeeded(this)
         hostAppearanceResumed = true
+        c11ClusterRouteRecovery.start()
+        startC11RefossGate()
         if (Build.VERSION.SDK_INT >= 26) referenceCenterAttachment?.updateResumed(true)
         refreshUltraVehicleUi()
         updateCallPopupGuard()
@@ -1550,6 +1596,8 @@ class CarPlayHostActivity : ComponentActivity() {
     // finish after the session has already asked for the virtual fallback stream.
     private val clusterDisplayListener = object : android.hardware.display.DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
+            if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this@CarPlayHostActivity))
+                renewC11ClusterRoute()
             if (isDestroyed || controller?.suppressesConventionalCluster == true ||
                 !AirPlayPersistence.loadClusterMapEnabled(this@CarPlayHostActivity)) return
             val display = ClusterMapPresentation.findDisplay(this@CarPlayHostActivity, effectiveClusterTheme())
@@ -1561,7 +1609,10 @@ class CarPlayHostActivity : ComponentActivity() {
             }
         }
         override fun onDisplayRemoved(displayId: Int) = Unit
-        override fun onDisplayChanged(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (com.shilapi.xcertplay.vehicle.VehicleIntegrationPolicy.isLeapmotorC11(this@CarPlayHostActivity))
+                renewC11ClusterRoute()
+        }
     }
 
     private fun clusterDisplayConfig(): AirPlayDisplayConfig? {
@@ -1840,6 +1891,8 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        c11ClusterRouteRecovery.stop()
+        c11RefossGate?.setVisible(false)
         com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.stopListeningForVoiceButton(this)
         c11VoiceButton.stop()
         cancelTemporarySystemBars()
@@ -1949,6 +2002,10 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        c11ClusterRouteRecovery.stop()
+        com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.stopListeningForCustomButton(this)
+        c11RefossGate?.close()
+        c11RefossGate = null
         closeUltraParkedObservation()
         ultraBatteryCard?.hide()
         c11VehicleSidebar?.visibility = View.GONE
@@ -6854,7 +6911,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.lastReportedExterior(applicationContext)?.celsius,
                 com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.tirePressures(applicationContext),
                 com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.tireTemperatures(applicationContext),
-                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.currentTripConsumption(applicationContext))
+                com.shilapi.xcertplay.vehicle.LeapmotorTelemetry.currentTripConsumption(applicationContext),
+                gateReady = c11RefossGate?.ready == true, gateStatus = c11RefossGate?.status)
         }
         val card = ultraBatteryCard ?: return
         if (c11SidebarEnabled()) { card.hide(); return }

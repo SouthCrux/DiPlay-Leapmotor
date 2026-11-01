@@ -994,4 +994,19 @@
     <string name="settings_c11_ultra_title">CarPlay Ultra プロトタイプ（実験的機能）</string>
     <string name="settings_c11_ultra_switch">Ultra の接続交渉をテスト</string>
     <string name="settings_c11_ultra_description">Apple の参照リソースパッケージを使用して、iPhone との Ultra セッションの接続交渉をテストします。完全な Ultra インターフェースはまだ利用できません。CarPlay の再接続時に適用されます。</string>
+    <string name="c11_sidebar_gate">ゲート</string>
+    <string name="c11_gate_double_click">ダブルクリック</string>
+    <string name="c11_gate_sent">ゲートへの操作を送信しました</string>
+    <string name="c11_gate_unconfirmed">操作結果を確認できません。再操作の前に確認してください。</string>
+    <string name="settings_cluster_zoom_description">現在のセッションのメーターパネル地図にズームを要求します。表示の視点はナビアプリが決定します。CarPlayは再接続しません。</string>
+    <string name="settings_cluster_zoom_in">メーターパネル地図を拡大</string>
+    <string name="settings_cluster_zoom_out">メーターパネル地図を縮小</string>
+    <string name="settings_cluster_zoom_requested">地図のズームを要求しました</string>
+    <string name="settings_cluster_zoom_unavailable">このセッションではメーターパネル地図を利用できません</string>
+    <string name="c11_gate_waiting_carplay">CarPlayに接続</string>
+    <string name="c11_gate_checking">確認中…</string>
+    <string name="c11_gate_waiting_button">ボタンを初期化中…</string>
+    <string name="c11_gate_no_wifi">自宅Wi-Fi未接続</string>
+    <string name="c11_gate_unreachable">ゲートに接続できません</string>
+    <string name="c11_gate_sending">送信中…</string>
 </resources>

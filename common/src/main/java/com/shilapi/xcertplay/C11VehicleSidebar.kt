@@ -92,6 +92,12 @@ internal class C11VehicleSidebar(context: Context) : ScrollView(context) {
     }
     private val exterior = field(R.string.vehicle_field_outside_short, R.drawable.ic_c11_sidebar_temperature)
     private val tyres = field(R.string.c11_sidebar_tyres, R.drawable.ic_c11_sidebar_tyres).apply { textSize = TYRE_VALUE_SP }
+    private val gate = field(R.string.c11_sidebar_gate, R.drawable.ic_c11_sidebar_gate).apply {
+        textSize = LABEL_SP
+        setText(R.string.c11_gate_double_click)
+    }
+    private val gateBlock = gate.parent as View
+    private val gateDivider = column.getChildAt(column.childCount - 2)
 
     init {
         visibility = GONE
@@ -103,7 +109,20 @@ internal class C11VehicleSidebar(context: Context) : ScrollView(context) {
     }
 
     fun update(snapshot: VehicleStatusSnapshot?, exteriorCelsius: Double?, pressures: Map<Wheel, Int?> = emptyMap(),
-        tireTemperaturesCelsius: Map<Wheel, Int?> = emptyMap(), currentTripConsumption: Double? = null) {
+        tireTemperaturesCelsius: Map<Wheel, Int?> = emptyMap(), currentTripConsumption: Double? = null,
+        gateReady: Boolean = false, gateStatus: com.shilapi.xcertplay.vehicle.C11RefossGate.Status? = null) {
+        val configured = gateReady || gateStatus != null
+        gateBlock.visibility = if (configured) VISIBLE else GONE
+        gateDivider.visibility = if (configured) VISIBLE else GONE
+        gate.setText(when (gateStatus) {
+            com.shilapi.xcertplay.vehicle.C11RefossGate.Status.WAITING_CARPLAY -> R.string.c11_gate_waiting_carplay
+            com.shilapi.xcertplay.vehicle.C11RefossGate.Status.CHECKING -> R.string.c11_gate_checking
+            com.shilapi.xcertplay.vehicle.C11RefossGate.Status.WAITING_BUTTON -> R.string.c11_gate_waiting_button
+            com.shilapi.xcertplay.vehicle.C11RefossGate.Status.NO_WIFI -> R.string.c11_gate_no_wifi
+            com.shilapi.xcertplay.vehicle.C11RefossGate.Status.UNREACHABLE -> R.string.c11_gate_unreachable
+            com.shilapi.xcertplay.vehicle.C11RefossGate.Status.SENDING -> R.string.c11_gate_sending
+            else -> R.string.c11_gate_double_click
+        })
         val locale = resources.configuration.locales[0]
         val missing = context.getString(R.string.c11_sidebar_no_data)
         fun TextView.value(next: String) { if (text.toString() != next) text = next }

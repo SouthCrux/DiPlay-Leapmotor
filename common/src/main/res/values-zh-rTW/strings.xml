@@ -952,4 +952,19 @@
     <string name="settings_c11_ultra_title">CarPlay Ultra 原型（實驗性）</string>
     <string name="settings_c11_ultra_switch">測試 Ultra 交握</string>
     <string name="settings_c11_ultra_description">使用 Apple 參考資源套件測試與 iPhone 的 Ultra 工作階段協商。完整的 Ultra 介面尚未提供。重新連接 CarPlay 後生效。</string>
+    <string name="c11_sidebar_gate">大門</string>
+    <string name="c11_gate_double_click">按兩下</string>
+    <string name="c11_gate_sent">已傳送大門操作指令</string>
+    <string name="c11_gate_unconfirmed">操作結果未確認，請檢查後再試。</string>
+    <string name="settings_cluster_zoom_description">要求調整目前連線中儀表板地圖的縮放。視角由導航 App 控制。不會重新連線 CarPlay。</string>
+    <string name="settings_cluster_zoom_in">放大儀表板地圖</string>
+    <string name="settings_cluster_zoom_out">縮小儀表板地圖</string>
+    <string name="settings_cluster_zoom_requested">已要求調整地圖縮放</string>
+    <string name="settings_cluster_zoom_unavailable">目前連線的儀表板地圖無法使用</string>
+    <string name="c11_gate_waiting_carplay">請連線CarPlay</string>
+    <string name="c11_gate_checking">正在檢查…</string>
+    <string name="c11_gate_waiting_button">正在初始化按鈕…</string>
+    <string name="c11_gate_no_wifi">未連線家庭Wi-Fi</string>
+    <string name="c11_gate_unreachable">無法連線大門</string>
+    <string name="c11_gate_sending">正在傳送…</string>
 </resources>

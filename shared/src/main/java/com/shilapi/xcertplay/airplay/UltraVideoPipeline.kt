@@ -40,6 +40,7 @@ internal class UltraVideoPipeline(
     private val failureReported = AtomicBoolean()
     private val publicationLock = Any()
     private val progress = UltraRenderProgress()
+    private val recovery = UltraOutputRecovery()
     private val stopped = CountDownLatch(1)
     private val session = UltraComposedPanelSession<VideoCompositionFrame>(runtime, input, sceneInputMode, batteryProvider,
         localSettings = localSettings)
@@ -83,7 +84,7 @@ internal class UltraVideoPipeline(
             session.receive(bytes).also { requestRefresh() }
         }
         override fun poll(): List<ByteArray> = protocolCall {
-            session.poll().also { if (it.isNotEmpty()) requestRefresh() }
+            session.poll().also { if (recovery.needsRefresh(it.isNotEmpty())) requestRefresh() }
         }
         override fun close() = this@UltraVideoPipeline.close()
     }
@@ -114,14 +115,23 @@ internal class UltraVideoPipeline(
 
     override val videoSink: MediaSink get() = decoder
 
-    override fun outputSubmitted(bitmap: Bitmap) { if (!closing.get()) interaction?.outputSubmitted(bitmap) }
-    override fun outputInvalidated() { interaction?.outputInvalidated() }
+    override fun outputSubmitted(bitmap: Bitmap) {
+        if (!closing.get()) {
+            recovery.submitted()
+            interaction?.outputSubmitted(bitmap)
+        }
+    }
+    override fun outputInvalidated() {
+        recovery.invalidated()
+        interaction?.outputInvalidated()
+    }
     override fun handleTouch(contacts: List<AirPlayContact>, canceled: Boolean): Boolean =
         !closing.get() && interaction?.handleTouch(contacts,canceled) == true
 
     /** Caller reports real host state; VM application occurs later on a panel/frame worker. */
     override fun updateHostVisibility(resumed: Boolean, surfaceReady: Boolean) {
         if (!closing.get()) {
+            recovery.visibility(resumed, surfaceReady)
             session.updateHostVisibility(resumed, surfaceReady)
             if (resumed && surfaceReady) requestRefresh()
         }
